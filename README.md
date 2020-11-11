@@ -1,6 +1,3 @@
-# GangEpl_Analysis
-This is a repository to do the data analysis on the Gang and Employment Study
-
 ---
 title: "GangEpl_Analysis_1104"
 author: "Jimmy Zhang"
@@ -8,7 +5,7 @@ date: "11/4/2020"
 output: html_document
 ---
 
-```{r load packages}
+```{r load packages, cache=TRUE}
 library(psych)  # for scatterplot matrix
 library(here)  # makes reading data more consistent
 library(tidyverse)  # for data manipulation and plotting
@@ -21,20 +18,35 @@ library(lme4)  # for multilevel analysis
 library(lattice)  # for dotplot (working with lme4)
 library(MuMIn)  # for computing r-squared
 library(broom.mixed)  # for summarizing results
-install.packages("funModeling")
-install.packages("Hmisc")
 library(funModeling)
 library(Hmisc)
 library(ggplot2)
 library(dplyr)
-install.packages("hrbrthemes")
-library(hrbrthemes)
+msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
+  if (is.null(coef_map)) {
+    if (!"list" %in% class(models)) {
+      models <- list(models)
+    }
+    for (model in models) {
+      coef_map <- union(coef_map, tidy(model)$term)
+    }
+  }
+  ranef_index <- grep("^(sd|cor)__", x = coef_map)
+  coef_map <- c(coef_map[-ranef_index], coef_map[ranef_index])
+  names(coef_map) <- coef_map
+  rows <- data.frame(term = c("Fixed Effects", "Random Effects"))
+  rows <- cbind(rows, rbind(rep("", length(models)), 
+                            rep("", length(models))))
+  length_fes <- length(coef_map) - length(ranef_index)
+  attr(rows, 'position') <- c(1, (length_fes + 1) * 2)
+  modelsummary::msummary(models, coef_map = coef_map, add_rows = rows, ...)
+}
 theme_set(theme_bw())  # Theme; just my personal preference
 
 ```
 
 ```{r import data}
-GangEpl <- read_sav(here("Fall 2020/MMM Lab/Gang and Employment", "Weekly Data Final Version Missing Data Addressed-12-23-09.sav"))
+GangEpl <- read_sav(here("Fall 2020/MMM Lab/Gang and Employment", "GangEpl.sav"))
 GangEpl
 ```
 
@@ -87,15 +99,6 @@ average_DC <- GangEpl %>%
   summarise(average = mean(DC1 + DC2 + DC3 + DC4 + DC5 + DC6 + DC7 + DC8 + DC9 + DC10 + DC11 + DC12))
 ```
 
-
-```{r ran_int}
-ran_int_Del1 <- lmer(Del1b ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del1)
-
-ran_int_Del3 <- lmer(Del3 ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del3)
-```
-
 #An overview of the study design and variables in the GangEpl (Gang Employment) dataset:\
 
   This is a long form dataset in which each participant was measured multiple times (indicated by the variable Session). We have 337 observations and 57 variables in total.
@@ -119,4 +122,169 @@ summary(ran_int_Del3)
   
 Concerns: some '88' and '99' value under the column of Del2d and Del2e. Still not really sure what they meant. They are separate from NA.
 
-#Plot the gang involvement and trajectory of each participant. Scale score
+#An Overview of Data Visualization (Spaghettie Plots and Individual Trajectories) and Scale Scores Computation
+
+```{r cache=TRUE}
+GangEpl %>% 
+    select(ID, Session, Date, EmployHrs, EmployWg) %>% 
+    psych::pairs.panels(jiggle = TRUE, factor = 0.5, ellipses = FALSE, 
+                        cex.cor = 1, cex = 0.5)
+```
+```{r spaghetti plot Part 1}
+pEmployHrs <- ggplot(GangEpl, aes(x = Date, y = EmployHrs)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pEmployHrs #The time variable is Date
+
+# p2 <- ggplot(GangEpl, aes(x = Session, y = EmployHrs)) + 
+  # geom_point() + 
+  # geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  # stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+# p2 #The time variable is Session
+
+pEmployWg <- ggplot(GangEpl, aes(x = Date, y = EmployWg)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pEmployWg #The time variable is Date
+```
+
+#Scale Scores
+
+Compute the average scale scores for each scale (Del1, Del2, Del5, GangInv, GangMem):
+
+```{r Computing Scale Score, cache=TRUE}
+GangEpl <- GangEpl %>% 
+  mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
+         Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
+         Del5 = (Del5a + Del5b + Del5c + Del5d + Del5e + Del5f) / 6,
+         GangInv = (GangInv1 + GangInv2 + GangInv3 + GangInv4) / 4,
+         GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem5) / 15)
+```
+
+```{r spaghetti plot Part 1}
+pDel1 <- ggplot(GangEpl, aes(x = Date, y = Del1)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pDel1
+
+pDel2 <- ggplot(GangEpl, aes(x = Date, y = Del2)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pDel2
+
+pDel3 <- ggplot(GangEpl, aes(x = Date, y = Del3)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pDel3
+
+pDel4 <- ggplot(GangEpl, aes(x = Date, y = Del4)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pDel4
+
+pDel5 <- ggplot(GangEpl, aes(x = Date, y = Del5)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pDel5
+
+pGangInv <- ggplot(GangEpl, aes(x = Date, y = GangInv)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pGangInv
+
+pGangMem <- ggplot(GangEpl, aes(x = Date, y = GangMem)) + 
+  geom_point() + 
+  geom_line(aes(group = ID)) +  # add lines to connect the data for each person
+  # add a mean trajectory
+  stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
+pGangMem
+```
+Individual Trajectories of EmployHrs and EmployWg:
+
+```{r Individual Trajectories}
+GangEpl %>% 
+  ggplot(aes(x = Date)) + 
+  geom_line(aes(y = EmployHrs), col = "blue") + 
+  geom_line(aes(y = EmployWg), col = "red") + 
+  facet_wrap( ~ ID, ncol = 4)
+```
+
+```{r within-person and between-person associations}
+GangEpl <- GangEpl %>% 
+  group_by(ID) %>% 
+  mutate(across(c(EmployHrs, EmployWg), 
+                # The `.` means the variable to be operated on
+                list("pm" = ~ mean(., na.rm = TRUE), 
+                     "pmc" = ~ . - mean(., na.rm = TRUE)))) %>% 
+  ungroup()
+
+pAssociations <- GangEpl %>% 
+  ggplot(aes(x = EmployHrs, y = EmployWg, col = ID)) + 
+  geom_point(size = 0.7, alpha = 0.5) + 
+  geom_smooth(se = FALSE) + 
+  geom_point(aes(x = EmployHrs_pm, y = EmployWg_pm, fill = ID), 
+             shape = 24, col = "black", size = 2) + 
+  geom_smooth(aes(x = EmployHrs_pm, y = EmployWg_pm, group = 1), 
+              method = "lm", linetype = "dashed", fullrange = TRUE)
+pAssociations
+```
+
+#Random Intercept Model
+
+I ran the intercept models for each variable for possible future analysis.
+
+```{r random Intercep Model of each variable}
+ran_int_EmployHrs <- lmer(EmployHrs ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_EmployHrs)
+
+ran_int_EmployWg <- lmer(EmployWg ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_EmployWg)
+
+ran_int_Del1 <- lmer(Del1 ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_Del1)
+
+ran_int_Del2 <- lmer(Del2 ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_Del2)
+
+ran_int_Del3 <- lmer(Del3 ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_Del3)
+
+ran_int_Del4 <- lmer(Del4 ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_Del4)
+
+ran_int_Del5 <- lmer(Del5 ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_Del5)
+
+ran_int_GangInv <- lmer(GangInv ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_GangInv)
+
+ran_int_GangMem <- lmer(GangMem ~ 1 + (1 | ID), data = GangEpl)
+summary(ran_int_GangMem)
+```
+
+#Adding variables
+
+```{r}
+
+```
+
+
+Comments:
+Should I use MLM with NA Predicting PA (Concurrently)?
