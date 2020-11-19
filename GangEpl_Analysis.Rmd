@@ -1,11 +1,11 @@
 ---
 title: "GangEpl_Analysis_1104"
 author: "Jimmy Zhang"
-date: "11/4/2020"
+date: "11/18/2020"
 output: html_document
 ---
 
-```{r load packages, cache=TRUE}
+```{r load packages}
 library(psych)  # for scatterplot matrix
 library(here)  # makes reading data more consistent
 library(tidyverse)  # for data manipulation and plotting
