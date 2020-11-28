@@ -1,16 +1,20 @@
 ---
-title: "GangEpl_Analysis_1104"
+title: "GangEpl_Prelim_Analysis_Report"
 author: "Jimmy Zhang"
-date: "11/18/2020"
-output: html_document
+date: "11/24/2020"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
 ---
 
-```{r load packages}
+```{r load packages, echo = FALSE, warning = FALSE, cache=TRUE, results='hide'}
 library(psych)  # for scatterplot matrix
 library(here)  # makes reading data more consistent
 library(tidyverse)  # for data manipulation and plotting
-library(car)  # some useful functions for regression
 library(modelsummary)  # for making tables
+library(brms)  # for Bayesian multilevel analysis
 library(sjPlot)  # for plotting slopes
 library(interactions)  # for plotting interactions
 library(haven)  # for importing SPSS/SAS/Stata data
@@ -42,64 +46,14 @@ msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
   modelsummary::msummary(models, coef_map = coef_map, add_rows = rows, ...)
 }
 theme_set(theme_bw())  # Theme; just my personal preference
-
 ```
 
-```{r import data}
-GangEpl <- read_sav(here("Fall 2020/MMM Lab/Gang and Employment", "GangEpl.sav"))
+```{r import data, echo=FALSE, cache=TRUE, warning = FALSE}
+GangEpl <- read_sav(here("GangEpl.sav"))
 GangEpl
 ```
 
-```{r histograms of selected variables}
-hist(GangEpl[5:6]) #Histograms of EmployHrs and WmployWg
-hist(GangEpl[7:12]) #Histograms of Del1a to Del1f
-hist(GangEpl[13:18]) #Histograms of Del2a to Del2f
-hist(GangEpl[19]) #Histograms of Del3
-hist(GangEpl[20]) #Histograms of Del4
-hist(GangEpl[21:26]) #Histograms of Del5a to Del5f
-hist(GangEpl[27:30]) #Histograms of GangInv1 to GangInv4
-```
-
-```{r scatter plots matrix}
-pairs.panels(GangEpl[5:6],  # not plotting the first column
-             ellipses = FALSE)
-pairs.panels(GangEpl[7:12],  # not plotting the first column
-             ellipses = FALSE)
-pairs.panels(GangEpl[13:18],  # not plotting the first column
-             ellipses = FALSE)
-pairs.panels(GangEpl[21:26],  # not plotting the first column
-             ellipses = FALSE)
-pairs.panels(GangEpl[27:30],  # not plotting the first column
-             ellipses = FALSE)
-```
-
-```{r scale scores}
-average_Del1 <- GangEpl %>% 
-  group_by(ID) %>% 
-  summarise(average = mean(Del1a + Del1b + Del1c + Del1d + Del1e + Del1f))
-
-average_Del2 <- GangEpl %>% 
-  group_by(ID) %>% 
-  summarise(average = mean(Del2a + Del2b + Del2c + Del2d + Del2e + Del2f))
-
-average_Del5 <- GangEpl %>% 
-  group_by(ID) %>% 
-  summarise(average = mean(Del5a + Del5b + Del5c + Del5d + Del5e + Del5f))
-
-average_GangInv <- GangEpl %>% 
-  group_by(ID) %>% 
-  summarise(average = mean(GangInv1 + GangInv2 + GangInv3 + GangInv4))
-
-average_GangMem <- GangEpl %>% 
-  group_by(ID) %>% 
-  summarise(average = mean(GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15)) #Missing data, computing error
-
-average_DC <- GangEpl %>% 
-  group_by(ID) %>% 
-  summarise(average = mean(DC1 + DC2 + DC3 + DC4 + DC5 + DC6 + DC7 + DC8 + DC9 + DC10 + DC11 + DC12))
-```
-
-#An overview of the study design and variables in the GangEpl (Gang Employment) dataset:\
+#An overview of the study design and variables in the GangEpl (Gang Employment) dataset:
 
   This is a long form dataset in which each participant was measured multiple times (indicated by the variable Session). We have 337 observations and 57 variables in total.
   
@@ -122,40 +76,21 @@ average_DC <- GangEpl %>%
   
 Concerns: some '88' and '99' value under the column of Del2d and Del2e. Still not really sure what they meant. They are separate from NA.
 
-#An Overview of Data Visualization (Spaghettie Plots and Individual Trajectories) and Scale Scores Computation
-
-```{r cache=TRUE}
-GangEpl %>% 
-    select(ID, Session, Date, EmployHrs, EmployWg) %>% 
-    psych::pairs.panels(jiggle = TRUE, factor = 0.5, ellipses = FALSE, 
-                        cex.cor = 1, cex = 0.5)
-```
-```{r spaghetti plot Part 1}
-pEmployHrs <- ggplot(GangEpl, aes(x = Date, y = EmployHrs)) + 
-  geom_point() + 
-  geom_line(aes(group = ID, color = factor(ID)))   # add lines to connect the data for each person
-  # add a mean trajectory
-pEmployHrs #The time variable is Date
-
-# p2 <- ggplot(GangEpl, aes(x = Session, y = EmployHrs)) + 
-  # geom_point() + 
-  # geom_line(aes(group = ID)) +  # add lines to connect the data for each person
-  # add a mean trajectory
-  # stat_summary(fun = "mean", col = "red", size = 1, geom = "line")
-# p2 #The time variable is Session
-
-pEmployWg <- ggplot(GangEpl, aes(x = Date, y = EmployWg)) + 
-  geom_point() + 
-  geom_line(aes(group = ID, color = factor(ID)))  # add lines to connect the data for each person
-  # add a mean trajectory
-pEmployWg #The time variable is Date
+```{r histograms of selected variables, cache=TRUE, warning = FALSE}
+hist(GangEpl[5:6]) #Histograms of EmployHrs and WmployWg
+hist(GangEpl[7:12]) #Histograms of Del1a to Del1f
+hist(GangEpl[13:18]) #Histograms of Del2a to Del2f
+hist(GangEpl[19]) #Histograms of Del3
+hist(GangEpl[20]) #Histograms of Del4
+hist(GangEpl[21:26]) #Histograms of Del5a to Del5f
+hist(GangEpl[27:30]) #Histograms of GangInv1 to GangInv4 
 ```
 
-#Scale Scores
+#Scale Scores Computation
 
 Compute the average scale scores for each scale (Del1, Del2, Del5, GangInv, GangMem):
 
-```{r Computing Scale Score, cache=TRUE}
+```{r Computing Scale Score, cache=TRUE, echo=FALSE, warning = FALSE}
 GangEpl <- GangEpl %>% 
   mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
          Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
@@ -164,7 +99,38 @@ GangEpl <- GangEpl %>%
          GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem5) / 15)
 ```
 
-```{r spaghetti plot Part 1}
+#Data Visualization (Spaghettie Plots and Individual Trajectories)
+
+```{r, cache=TRUE, echo=FALSE, warning = FALSE}
+GangEpl %>% 
+    select(ID, Session, Date, EmployHrs, EmployWg) %>% 
+    psych::pairs.panels(jiggle = TRUE, factor = 0.5, ellipses = FALSE, 
+                        cex.cor = 1, cex = 0.5)
+```
+
+#Spaghetti Plots
+
+```{r EmployHrs ~ Date, cache=TRUE, echo=FALSE, warning = FALSE}
+pEmployHrs <- ggplot(GangEpl, aes(x = Date, y = EmployHrs)) + 
+  geom_point() + 
+  geom_line(aes(group = ID, color = factor(ID)))   # add lines to connect the data for each person
+pEmployHrs #The time variable is Date
+```
+
+According to the plot above, we can see that all participants only participated in a certain period within three years (i.e. Participant ID 2 stayed in the program for only 4 months). The length of period and the number of sessions they participated were different from each other. Most of participants did not get employed every week so there were a lot of 0 points in the plot, and this is why the plot looks fluctuating heavily. The attribute of this plot applies to all other dependent variables, with date as the explanatory variable.
+
+
+```{r EmployWg ~ Date, cache=TRUE, echo=FALSE, warning = FALSE}
+pEmployWg <- ggplot(GangEpl, aes(x = Date, y = EmployWg)) + 
+  geom_point() + 
+  geom_line(aes(group = ID, color = factor(ID)))  # add lines to connect the data for each person
+  # add a mean trajectory
+pEmployWg #The time variable is Date
+```
+
+This is a plot illustrating the employ wage of previous week. The highest number of 120.
+
+```{r spaghetti plot, cache=TRUE, echo=FALSE, warning = FALSE}
 pDel1 <- ggplot(GangEpl, aes(x = Date, y = Del1)) + 
   geom_point() + 
   geom_line(aes(group = ID)) +  # add lines to connect the data for each person
@@ -214,9 +180,12 @@ pGangMem <- ggplot(GangEpl, aes(x = Date, y = GangMem)) +
   geom_line(aes(group = ID, color = factor(ID)))
 pGangMem
 ```
-Individual Trajectories of EmployHrs and EmployWg:
 
-```{r Individual Trajectories}
+Notes: The missing part of the plots means that the data is missing (N/A).
+
+# Individual Trajectories of EmployHrs and EmployWg:
+
+```{r Individual Trajectories, cache=TRUE, echo=FALSE, warning = FALSE}
 GangEpl %>% 
   ggplot(aes(x = Date)) + 
   geom_line(aes(y = EmployHrs), col = "blue") + 
@@ -224,63 +193,165 @@ GangEpl %>%
   facet_wrap( ~ ID, ncol = 4)
 ```
 
-```{r within-person and between-person associations}
+This is an illustration of individual trajectories of EmployHrs and EmployWg for each participant. We can see that there are serious data missing issue with participant 2, 10, 13, 26, and 27. 
+
+#Random Intercept Model and Intraclass Correlation
+
+```{r random Intercep Model of EmployHrs, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+ran_int_EmployHrs <- brm(EmployHrs ~ (1 | ID), data = GangEpl, 
+               seed = 2152)
+```
+
+```{r results_EmployHrs, cache=TRUE, echo=FALSE, warning = FALSE}
+summary(ran_int_EmployHrs)
+
+post_samples <- posterior_samples(ran_int_EmployHrs, pars = c("sd", "sigma"))
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_EmployHrs <- post_samples$sd_ID__Intercept^2 / 
+  (post_samples$sd_ID__Intercept^2 + post_samples$sigma^2)
+c(EmployHrs = mean(icc_samples_EmployHrs))
+```
+
+A random intercept model was run for calculating intraclass correlation, with EmployHrs as the outcome variable. The ICC for EmployHrs is 0.39 meaning that the proportion of variance explained by the cluster of ID (per participants) is about 39%. It is fairly high to continue analyzing the data using MLM.
+
+```{r random Intercep Model of EmployWg, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+ran_int_EmployWg <- brm(EmployWg ~ (1 | ID), data = GangEpl, 
+               seed = 2152)
+```
+
+```{r result_EmployWg, cache=TRUE, echo=FALSE, warning = FALSE}
+summary(ran_int_EmployWg)
+
+post_samples <- posterior_samples(ran_int_EmployWg, pars = c("sd", "sigma"))
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_EmployWg <- post_samples$sd_ID__Intercept^2 / 
+  (post_samples$sd_ID__Intercept^2 + post_samples$sigma^2)
+c(EmployWg = mean(icc_samples_EmployWg))
+```
+
+The ICC of EmloyWg is only 4.4%, much lower than EmployHrs. 
+
+```{r random Intercep Model of GangInv, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+ran_int_GangInv <- brm(GangInv ~ (1 | ID), data = GangEpl, 
+               seed = 2152)
+```
+
+```{r result_GangInv, cache=TRUE, echo=FALSE, warning = FALSE}
+summary(ran_int_GangInv)
+
+post_samples <- posterior_samples(ran_int_GangInv, pars = c("sd", "sigma"))
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_GangInv <- post_samples$sd_ID__Intercept^2 / 
+  (post_samples$sd_ID__Intercept^2 + post_samples$sigma^2)
+c(GangInv = mean(icc_samples_GangInv))
+```
+
+The ICC of GangInv is really high, 72.6%.
+
+```{r random Intercep Model of GangMem, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+ran_int_GangMem <- brm(GangMem ~ (1 | ID), data = GangEpl, 
+               seed = 2152)
+```
+
+```{r result_GangMem, cache=TRUE, echo=FALSE, warning = FALSE}
+summary(ran_int_GangMem)
+
+post_samples <- posterior_samples(ran_int_GangMem, pars = c("sd", "sigma"))
+# Posterior of ICC: tau_0^2 / (tau_0^2 + sigma^2)
+icc_samples_GangMem <- post_samples$sd_ID__Intercept^2 / 
+  (post_samples$sd_ID__Intercept^2 + post_samples$sigma^2)
+c(GangMem = mean(icc_samples_GangMem))
+```
+
+The ICC of GangInv is also kind of high, 40.8%.
+
+#Checking whether there is a trend in the data
+
+```{r trend checking, echo=FALSE, cache=TRUE, warning = FALSE, results='hide'}
+m_Trend <- brm(EmployHrs ~ Date + (Date | ID), data = GangEpl, 
+          seed = 2313, 
+          control = list(adapt_delta = .90))
+```
+
+```{r result_m_Trend, echo=FALSE, cache=TRUE, warning = FALSE}
+summary(m_Trend)
+```
+
+
+Since the outcome of this model is not convergent with a pretty small coefficient of date, we can say that there is a negligible trend in te data.
+
+#Adding variables
+
+First, let me decompose the between-within effects by computing the mean-centered variables for each predicting variables with their means.
+
+```{r centering variables, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
 GangEpl <- GangEpl %>% 
   group_by(ID) %>% 
-  mutate(across(c(EmployHrs, EmployWg), 
+  mutate(across(c(Del1, Del2, Del3, Del4, Del5, GangInv, GangMem), 
                 # The `.` means the variable to be operated on
                 list("pm" = ~ mean(., na.rm = TRUE), 
                      "pmc" = ~ . - mean(., na.rm = TRUE)))) %>% 
   ungroup()
-
-pAssociations <- GangEpl %>% 
-  ggplot(aes(x = EmployHrs, y = EmployWg, col = ID)) + 
-  geom_point(size = 0.7, alpha = 0.5) + 
-  geom_smooth(se = FALSE) + 
-  geom_point(aes(x = EmployHrs_pm, y = EmployWg_pm, fill = ID), 
-             shape = 24, col = "black", size = 2) + 
-  geom_smooth(aes(x = EmployHrs_pm, y = EmployWg_pm, group = 1), 
-              method = "lm", linetype = "dashed", fullrange = TRUE)
-pAssociations
+GangEpl
 ```
 
-#Random Intercept Model
+#Using variables to predict EmployHrs
 
-I ran the intercept models for each variable for possible future analysis.
-
-```{r random Intercep Model of each variable}
-ran_int_EmployHrs <- lmer(EmployHrs ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_EmployHrs)
-
-ran_int_EmployWg <- lmer(EmployWg ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_EmployWg)
-
-ran_int_Del1 <- lmer(Del1 ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del1)
-
-ran_int_Del2 <- lmer(Del2 ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del2)
-
-ran_int_Del3 <- lmer(Del3 ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del3)
-
-ran_int_Del4 <- lmer(Del4 ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del4)
-
-ran_int_Del5 <- lmer(Del5 ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_Del5)
-
-ran_int_GangInv <- lmer(GangInv ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_GangInv)
-
-ran_int_GangMem <- lmer(GangMem ~ 1 + (1 | ID), data = GangEpl)
-summary(ran_int_GangMem)
+```{r between-within effects, echo=FALSE, cache=TRUE, warning = FALSE, results='hide'}
+m_EmployHrs <- brm(EmployHrs ~ GangInv_pm + GangInv_pmc + GangMem_pm + GangMem_pmc + Del1_pm + Del1_pmc + Del2_pm + Del2_pmc + Del3_pm + Del3_pmc + Del4_pm + Del4_pmc + Del5_pm + Del5_pmc + (GangInv_pmc + GangMem_pmc + Del1_pmc + Del2_pmc + Del3_pmc + Del4_pmc + Del5_pmc | ID), data = GangEpl, seed = 2152)
 ```
 
-#Adding variables
-
-```{r}
-ModelGangInv <- lmer(GangInv ~ EmployHrs + (EmployHrs | ID), data = GangEpl)
-summary(ModelGangInv)
+```{r results_m_EmployHrs, cache=TRUE, echo=FALSE, warning = FALSE}
+summary(m_EmployHrs)
 ```
+
+Model Equations:
+
+Lv-1:
+
+$$\text{EmployHrs}_{ij} = \beta_{0j} + \beta_{1j} \text{GangInv\_pmc}_{ij} + \beta_{2j} \text{GangMem\_pmc}_{ij} + \beta_{3j} \text{Del1\_pmc}_{ij} + \beta_{4j} \text{Del2\_pmc}_{ij} + \beta_{5j} \text{Del3\_pmc}_{ij} + \beta_{6j} \text{Del4\_pmc}_{ij} + \beta_{7j} \text{Del5\_pmc}_{ij} + e_{ij}$$
+Lv-2:
+
+$$
+\begin{aligned}
+  \beta_{0j} & = \gamma_{00} + \gamma_{01} \text{GangInv\_pm}_j + \gamma_{02} \text{GangMem\_pm}_j + \gamma_{03} \text{Del1\_pm}_j + \gamma_{04} \text{Del2\_pm}_j + \gamma_{05} \text{Del3\_pm}_j + \gamma_{06} \text{Del4\_pm}_j + \gamma_{07} \text{Del5\_pm}_j + u_{0j}  \\
+  \beta_{1j} & = \gamma_{10}+ u_{1j} \\
+  \beta_{2j} & = \gamma_{20}+ u_{2j} \\
+  \beta_{3j} & = \gamma_{30}+ u_{3j} \\
+  \beta_{4j} & = \gamma_{40}+ u_{4j} \\
+  \beta_{5j} & = \gamma_{50}+ u_{5j} \\
+  \beta_{6j} & = \gamma_{60}+ u_{6j} \\
+  \beta_{7j} & = \gamma_{70}+ u_{7j} \\
+\end{aligned}
+$$
+
+Interpretation of the model results:
+
+It seems that GangInv_pm, GangMem_pm, Del4_pm and Del5_pm are significantly predicting the employment hours. The random effects of these four variables are also significant. 
+
+#Coefficient Table
+
+Here is a coefficient table for the trend model and EmployHrs model:
+
+```{r, cache=TRUE, echo=FALSE, warning = FALSE}
+msummary_mixed(list("Trend" = m_Trend, 
+                    "NA --> PA" = m_EmployHrs), 
+               statistic = "conf.int", 
+               looic = TRUE)
+```
+
+#Visualizing the Data
+
+```{r, cache=TRUE, echo=FALSE, warning = FALSE}
+GangEpl %>% 
+  filter(ID %in% sample(unique(ID), 12)) %>% 
+ggplot(aes(x = GangInv, y = EmployHrs)) + 
+  geom_point(size = 0.5) + 
+  geom_smooth(method = "lm") + 
+  facet_wrap( ~ ID)
+```
+
+Here is an illustration of random effects of gang involvement on employment hours. 
+
+
 
