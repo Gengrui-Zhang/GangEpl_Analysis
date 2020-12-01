@@ -3,13 +3,28 @@ title: "GangEpl_Prelim_Analysis_Report"
 author: "Jimmy Zhang"
 date: "11/24/2020"
 output:
+  word_document: default
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
-  word_document: default
 ---
 
-```{r load packages, echo = FALSE, warning = FALSE, cache=TRUE, results='hide'}
+TODO
+
+- [ ] Separate Gang Activity (`GangInv2`) and Days With Gang (`GangInv1`)
+- [ ] Replace the original analyses with `GangInv`
+- [ ] Use employment as predictor rather than outcome. See Table 3 of the paper.
+
+[ML]: # (You can control the global chunk options below)
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = TRUE)
+```
+
+[ML]: # (Please only use 'cache=TRUE' for long processes. It's dangerous to accumulate old data.)
+
+```{r load packages, results = 'hide'}
+options(width = 60)
 library(psych)  # for scatterplot matrix
 library(here)  # makes reading data more consistent
 library(tidyverse)  # for data manipulation and plotting
@@ -48,12 +63,16 @@ msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
 theme_set(theme_bw())  # Theme; just my personal preference
 ```
 
-```{r import data, echo=FALSE, cache=TRUE, warning = FALSE}
-GangEpl <- read_sav(here("GangEpl.sav"))
+[ML]: # (Please only use 'cache=TRUE' for long processes)
+
+```{r import data}
+GangEpl <- read_sav(
+  here("data/Weekly Data Final Version Missing Data Addressed-12-23-09.sav")
+)
 GangEpl
 ```
 
-#An overview of the study design and variables in the GangEpl (Gang Employment) dataset:
+# An overview of the study design and variables in the GangEpl (Gang Employment) dataset:
 
   This is a long form dataset in which each participant was measured multiple times (indicated by the variable Session). We have 337 observations and 57 variables in total.
   
@@ -63,20 +82,20 @@ GangEpl
   
   Variables:
   
-  ID -> Pariticipant ID
-  Age -> The age of participant at each session
-  Session -> Time point at which each participant was recorded
-  Date -> The date is in year-month-date format (read in haven package)
-  EmployHrs -> The hours of working in the current week
-  EmployWg -> Hourly wage in the current week
-  Del -> Participants' report on the number of gang activities such as stealing over the previous week
-  GangInv1 to GangInv4 -> Participants' report on questions about the level of Gang Involvment
-  GangMem1 to GangMem15 -> Participants' report on Gang Membership Inventory (the measure of gang membership)
-  DC1 to DC12 -> Dummy coded variables for each participant (In the draft paper, the author stated that to identify sources of contamination expected from pooling data from multiple participants, a least squares with dummy variables (LSDV) approach was used. However, I really think a codebook is needed to address how these variables are dummy coded).
+- ID -> Pariticipant ID
+- Age -> The age of participant at each session
+- Session -> Time point at which each participant was recorded
+- Date -> The date is in year-month-date format (read in haven package)
+- EmployHrs -> The hours of working in the current week
+- EmployWg -> Hourly wage in the current week
+- Del -> Participants' report on the number of gang activities such as stealing over the previous week
+- GangInv1 to GangInv4 -> Participants' report on questions about the level of Gang Involvment
+- GangMem1 to GangMem15 -> Participants' report on Gang Membership Inventory (the measure of gang membership)
+- DC1 to DC12 -> Dummy coded variables for each participant (In the draft paper, the author stated that to identify sources of contamination expected from pooling data from multiple participants, a least squares with dummy variables (LSDV) approach was used. However, I really think a codebook is needed to address how these variables are dummy coded).
   
-Concerns: some '88' and '99' value under the column of Del2d and Del2e. Still not really sure what they meant. They are separate from NA.
+> Concerns: some '88' and '99' value under the column of Del2d and Del2e. Still not really sure what they meant. They are separate from NA.
 
-```{r histograms of selected variables, cache=TRUE, warning = FALSE}
+```{r histograms of selected variables}
 hist(GangEpl[5:6]) #Histograms of EmployHrs and WmployWg
 hist(GangEpl[7:12]) #Histograms of Del1a to Del1f
 hist(GangEpl[13:18]) #Histograms of Del2a to Del2f
@@ -86,11 +105,15 @@ hist(GangEpl[21:26]) #Histograms of Del5a to Del5f
 hist(GangEpl[27:30]) #Histograms of GangInv1 to GangInv4 
 ```
 
-#Scale Scores Computation
+## Scale Scores Computation
 
 Compute the average scale scores for each scale (Del1, Del2, Del5, GangInv, GangMem):
 
-```{r Computing Scale Score, cache=TRUE, echo=FALSE, warning = FALSE}
+[ML]: # (I'm not sure whether an unweighted average of the item scores is the way to go, as the items have different)
+
+[ML]: # (From the paper, it was stated that 'the gang activityw responses were dichotomized to '0' (i.e., never in this group, no longer in a gang, or not active in a gang) and '1' (i.e., rarely active, very active, or gang leader)', which should be the GangInv2 variable.)
+
+```{r Computing Scale Score}
 GangEpl <- GangEpl %>% 
   mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
          Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
@@ -99,28 +122,41 @@ GangEpl <- GangEpl %>%
          GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem5) / 15)
 ```
 
-#Data Visualization (Spaghettie Plots and Individual Trajectories)
+# Data Visualization (Spaghettie Plots and Individual Trajectories)
 
-```{r, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r}
 GangEpl %>% 
     select(ID, Session, Date, EmployHrs, EmployWg) %>% 
     psych::pairs.panels(jiggle = TRUE, factor = 0.5, ellipses = FALSE, 
                         cex.cor = 1, cex = 0.5)
 ```
 
-#Spaghetti Plots
+[ML]: # (You can use a second-level heading)
 
-```{r EmployHrs ~ Date, cache=TRUE, echo=FALSE, warning = FALSE}
+## Spaghetti Plots
+
+```{r EmployHrs ~ Date}
 pEmployHrs <- ggplot(GangEpl, aes(x = Date, y = EmployHrs)) + 
   geom_point() + 
   geom_line(aes(group = ID, color = factor(ID)))   # add lines to connect the data for each person
 pEmployHrs #The time variable is Date
 ```
 
+[ML]: # (I added the following)
+
+```{r EmployHrs ~ elapse}
+GangEpl %>% 
+    group_by(ID) %>% 
+    mutate(elapse = Date - min(Date)) %>% 
+ggplot(aes(x = elapse, y = EmployHrs)) + 
+  geom_point() + 
+  geom_line(aes(group = ID, color = factor(ID))) + 
+  labs(x = "Days since first measurement")
+```
+
 According to the plot above, we can see that all participants only participated in a certain period within three years (i.e. Participant ID 2 stayed in the program for only 4 months). The length of period and the number of sessions they participated were different from each other. Most of participants did not get employed every week so there were a lot of 0 points in the plot, and this is why the plot looks fluctuating heavily. The attribute of this plot applies to all other dependent variables, with date as the explanatory variable.
 
-
-```{r EmployWg ~ Date, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r EmployWg ~ Date}
 pEmployWg <- ggplot(GangEpl, aes(x = Date, y = EmployWg)) + 
   geom_point() + 
   geom_line(aes(group = ID, color = factor(ID)))  # add lines to connect the data for each person
@@ -130,7 +166,7 @@ pEmployWg #The time variable is Date
 
 This is a plot illustrating the employ wage of previous week. The highest number of 120.
 
-```{r spaghetti plot, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r spaghetti plot}
 pDel1 <- ggplot(GangEpl, aes(x = Date, y = Del1)) + 
   geom_point() + 
   geom_line(aes(group = ID)) +  # add lines to connect the data for each person
@@ -183,9 +219,9 @@ pGangMem
 
 Notes: The missing part of the plots means that the data is missing (N/A).
 
-# Individual Trajectories of EmployHrs and EmployWg:
+## Individual Trajectories of EmployHrs and EmployWg:
 
-```{r Individual Trajectories, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r Individual Trajectories}
 GangEpl %>% 
   ggplot(aes(x = Date)) + 
   geom_line(aes(y = EmployHrs), col = "blue") + 
@@ -195,14 +231,14 @@ GangEpl %>%
 
 This is an illustration of individual trajectories of EmployHrs and EmployWg for each participant. We can see that there are serious data missing issue with participant 2, 10, 13, 26, and 27. 
 
-#Random Intercept Model and Intraclass Correlation
+# Random Intercept Model and Intraclass Correlation
 
-```{r random Intercep Model of EmployHrs, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+```{r random Intercep Model of EmployHrs, cache = TRUE, results = 'hide'}
 ran_int_EmployHrs <- brm(EmployHrs ~ (1 | ID), data = GangEpl, 
-               seed = 2152)
+                         seed = 2152)
 ```
 
-```{r results_EmployHrs, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r results_EmployHrs}
 summary(ran_int_EmployHrs)
 
 post_samples <- posterior_samples(ran_int_EmployHrs, pars = c("sd", "sigma"))
@@ -214,12 +250,12 @@ c(EmployHrs = mean(icc_samples_EmployHrs))
 
 A random intercept model was run for calculating intraclass correlation, with EmployHrs as the outcome variable. The ICC for EmployHrs is 0.39 meaning that the proportion of variance explained by the cluster of ID (per participants) is about 39%. It is fairly high to continue analyzing the data using MLM.
 
-```{r random Intercep Model of EmployWg, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+```{r random Intercep Model of EmployWg, cache=TRUE, results='hide'}
 ran_int_EmployWg <- brm(EmployWg ~ (1 | ID), data = GangEpl, 
-               seed = 2152)
+                        seed = 2152)
 ```
 
-```{r result_EmployWg, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r result_EmployWg, cache=TRUE, echo=FALSE}
 summary(ran_int_EmployWg)
 
 post_samples <- posterior_samples(ran_int_EmployWg, pars = c("sd", "sigma"))
@@ -231,12 +267,14 @@ c(EmployWg = mean(icc_samples_EmployWg))
 
 The ICC of EmloyWg is only 4.4%, much lower than EmployHrs. 
 
-```{r random Intercep Model of GangInv, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+[ML]: # (Please replace the following analyses with `GangInv`)
+
+```{r random Intercep Model of GangInv, cache=TRUE, results='hide', eval = FALSE}
 ran_int_GangInv <- brm(GangInv ~ (1 | ID), data = GangEpl, 
                seed = 2152)
 ```
 
-```{r result_GangInv, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r result_GangInv, cache=TRUE, eval = FALSE}
 summary(ran_int_GangInv)
 
 post_samples <- posterior_samples(ran_int_GangInv, pars = c("sd", "sigma"))
@@ -246,14 +284,16 @@ icc_samples_GangInv <- post_samples$sd_ID__Intercept^2 /
 c(GangInv = mean(icc_samples_GangInv))
 ```
 
-The ICC of GangInv is really high, 72.6%.
+<!-- The ICC of GangInv is really high, 72.6%. -->
 
-```{r random Intercep Model of GangMem, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+[ML]: # (The data is highly skewed. Maybe try a binomial logistic instead.)
+
+```{r random Intercep Model of GangMem, cache=TRUE, results='hide'}
 ran_int_GangMem <- brm(GangMem ~ (1 | ID), data = GangEpl, 
                seed = 2152)
 ```
 
-```{r result_GangMem, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r result_GangMem}
 summary(ran_int_GangMem)
 
 post_samples <- posterior_samples(ran_int_GangMem, pars = c("sd", "sigma"))
@@ -265,26 +305,27 @@ c(GangMem = mean(icc_samples_GangMem))
 
 The ICC of GangInv is also kind of high, 40.8%.
 
-#Checking whether there is a trend in the data
+## Checking whether there is a trend in the data
 
-```{r trend checking, echo=FALSE, cache=TRUE, warning = FALSE, results='hide'}
+```{r trend checking, echo=FALSE, cache=TRUE, results='hide'}
 m_Trend <- brm(EmployHrs ~ Date + (Date | ID), data = GangEpl, 
           seed = 2313, 
           control = list(adapt_delta = .90))
 ```
 
-```{r result_m_Trend, echo=FALSE, cache=TRUE, warning = FALSE}
+```{r result_m_Trend, echo=FALSE, cache=TRUE}
 summary(m_Trend)
 ```
 
+[ML]: # (What do you mean by 'convergent' below?)
 
 Since the outcome of this model is not convergent with a pretty small coefficient of date, we can say that there is a negligible trend in te data.
 
-#Adding variables
+# Adding variables
 
 First, let me decompose the between-within effects by computing the mean-centered variables for each predicting variables with their means.
 
-```{r centering variables, cache=TRUE, echo=FALSE, warning = FALSE, results='hide'}
+```{r centering variables, cache=TRUE, echo=FALSE, results='hide'}
 GangEpl <- GangEpl %>% 
   group_by(ID) %>% 
   mutate(across(c(Del1, Del2, Del3, Del4, Del5, GangInv, GangMem), 
@@ -295,13 +336,15 @@ GangEpl <- GangEpl %>%
 GangEpl
 ```
 
-#Using variables to predict EmployHrs
+[ML]: # (I think the paper is about Gang activity/involvement/membership as outcome. Please modify the analyses and interpretations, and centering choices.)
 
-```{r between-within effects, echo=FALSE, cache=TRUE, warning = FALSE, results='hide'}
+# Using variables to predict EmployHrs
+
+```{r between-within effects, cache=TRUE, results='hide', eval=FALSE}
 m_EmployHrs <- brm(EmployHrs ~ GangInv_pm + GangInv_pmc + GangMem_pm + GangMem_pmc + Del1_pm + Del1_pmc + Del2_pm + Del2_pmc + Del3_pm + Del3_pmc + Del4_pm + Del4_pmc + Del5_pm + Del5_pmc + (GangInv_pmc + GangMem_pmc + Del1_pmc + Del2_pmc + Del3_pmc + Del4_pmc + Del5_pmc | ID), data = GangEpl, seed = 2152)
 ```
 
-```{r results_m_EmployHrs, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r results_m_EmployHrs, eval=FALSE}
 summary(m_EmployHrs)
 ```
 
@@ -325,24 +368,24 @@ $$
 \end{aligned}
 $$
 
-Interpretation of the model results:
+<!-- Interpretation of the model results: -->
 
-It seems that GangInv_pm, GangMem_pm, Del4_pm and Del5_pm are significantly predicting the employment hours. The random effects of these four variables are also significant. 
+<!-- It seems that GangInv_pm, GangMem_pm, Del4_pm and Del5_pm are significantly predicting the employment hours. The random effects of these four variables are also significant.  -->
 
-#Coefficient Table
+## Coefficient Table
 
 Here is a coefficient table for the trend model and EmployHrs model:
 
-```{r, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r, eval = FALSE}
 msummary_mixed(list("Trend" = m_Trend, 
                     "NA --> PA" = m_EmployHrs), 
                statistic = "conf.int", 
                looic = TRUE)
 ```
 
-#Visualizing the Data
+## Visualizing the Data
 
-```{r, cache=TRUE, echo=FALSE, warning = FALSE}
+```{r, eval = FALSE}
 GangEpl %>% 
   filter(ID %in% sample(unique(ID), 12)) %>% 
 ggplot(aes(x = GangInv, y = EmployHrs)) + 
