@@ -3,10 +3,10 @@ title: "GangEpl_Prelim_Analysis_Report"
 author: "Jimmy Zhang"
 date: "11/24/2020"
 output:
+  word_document: default
   html_document:
     df_print: paged
   pdf_document: default
-  word_document: default
 ---
 
 ```{r load packages, echo = FALSE, warning = FALSE, cache=TRUE, results='hide'}
