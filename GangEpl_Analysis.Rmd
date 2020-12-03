@@ -362,7 +362,7 @@ The ICC of GangMem is also kind of high, 37.9%.
 ```{r trend checking, echo=FALSE, cache=TRUE, results='hide'}
 m_Trend <- brm(Days_Gang ~ Date + (Date | ID), data = GangEpl, 
           seed = 2313, 
-          control = list(adapt_delta = .90))
+          control = list(adapt_delta = .99))
 ```
 
 ```{r result_m_Trend, echo=FALSE, cache=TRUE}
@@ -371,20 +371,21 @@ summary(m_Trend)
 
 [ML]: # (What do you mean by 'convergent' below?)
 [JZ]: # (One warning message is "There were 169 divergent transitions after warmup." I think it means the model is not fully convergent?)
+[JZ]: # (I adjusted adapt_data to .99 but it still has 42 divergent transitions...)
 
 Since the outcome of this model is not convergent with a pretty small coefficient of date, we can say that there is a negligible trend in the data.
 
 ```{r trend checking 2, echo=FALSE, cache=TRUE, results='hide'}
 m_Trend_2 <- brm(Gang_Activity ~ Date + (Date | ID), data = GangEpl, 
           seed = 2313, 
-          control = list(adapt_delta = .90))
+          control = list(adapt_delta = .99))
 ```
 
 ```{r result_m_Trend_2, echo=FALSE, cache=TRUE}
 summary(m_Trend_2)
 ```
 
-Part of the model is not convergent and the coefficient of date is small enough. Thus the trend of Gang_Activity is also negligible.
+The result of this model is not eligible for interpretation because it has 3999 divergent transitions. Maybe it is because we treat Gang_Activity as continuous variable.
 
 # Adding variables
 
@@ -408,27 +409,26 @@ GangEpl
 ## Using variables to predict Gangs_Gang
 
 ```{r Days_Gang, cache=TRUE, results='hide'}
-m_Days_Gang <- brm(Days_Gang ~ EmployHrs_pm + EmployWg_pm + EmployHrs_pmc + EmployWg_pmc + (EmployHrs_pmc + EmployWg_pmc | ID), data = GangEpl, seed = 2152)
+m_Days_Gang <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, 
+                   seed = 2152,
+                   control = list(adapt_delta = .95))
 ```
 
 ```{r results_m_Days_Gang}
 summary(m_Days_Gang)
 ```
 
-[JZ] # (Is it Ok that the model had 42 divergent transitions after warmup?)
-
 Model Equations:
 
 Lv-1:
 
-$$\text{Days\_Gang}_{ij} = \beta_{0j} + \beta_{1j} \text{EmployHrs\_pmc}_{ij} + \beta_{2j} \text{EmployWg\_pmc}_{ij} + e{ij}$$
+$$\text{Days\_Gang}_{ij} = \beta_{0j} + \beta_{1j} \text{EmployHrs\_pmc}_{ij} + e{ij}$$
 Lv-2:
 
 $$
 \begin{aligned}
-  \beta_{0j} & = \gamma_{00} + \gamma_{01} \text{EmployHrs\_pm}_j + \gamma_{02} \text{EmployWg\_pm}_j + u_{0j}  \\
+  \beta_{0j} & = \gamma_{00} + \gamma_{01} \text{EmployHrs\_pm}_j + u_{0j}  \\
   \beta_{1j} & = \gamma_{10}+ u_{1j} \\
-  \beta_{2j} & = \gamma_{20}+ u_{2j} \\
 \end{aligned}
 $$
 
@@ -436,20 +436,12 @@ $$
 
 <!-- It seems that none of level1 and level2 variables are significantly predicting the Days with Gang. However, the random effects of level2 variables are significant. -->
 
-```{r Days_Gang_2, cache=TRUE, results='hide', eval=FALSE}
-m_Days_Gang_2 <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, seed = 2152)
-```
-
-```{r results_m_Days_Gang_2, eval=FALSE}
-summary(m_Days_Gang_2)
-```
-
-<!-- This is a second try without predictors of EmoloyWg. The result demonstrated that both level1 and level2 variables of EmployHrs are not significantly predicting Days_Gang. -->
-
 ## Using variables to predict Gang_Activity
 
 ```{r Gang_Activity, cache=TRUE, results='hide'}
-m_Gang_Activity <- brm(Gang_Activity ~ EmployHrs_pm + EmployWg_pm + EmployHrs_pmc + EmployWg_pmc + (EmployHrs_pmc + EmployWg_pmc | ID), data = GangEpl, seed = 2152)
+m_Gang_Activity <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, 
+                       seed = 2152,
+                       control = list(adapt_delta = .95))
 ```
 
 ```{r results_m_Gang_Activity}
@@ -460,22 +452,12 @@ summary(m_Gang_Activity)
 
 <!-- It seems that none of level1 and level2 variables are significantly predicting the Gang Activity. However, the random effects of level2 variables are significant. -->
 
-A second try without EmployWg:
-
-```{r Gang_Activity_2, cache=TRUE, results='hide'}
-m_Gang_Activity_2 <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, seed = 2152)
-```
-
-```{r results_m_Gang_Activity_2}
-summary(m_Gang_Activity_2)
-```
-
-<!-- This is a second try without predictors of EmoloyWg. The result demonstrated that both level1 and level2 variables of EmployHrs are not significantly predicting Gang_Activity. -->
-
 ## Using variables to predict GangMem
 
 ```{r GangMem, cache=TRUE, results='hide'}
-m_GangMem <- brm(GangMem ~ EmployHrs_pm + EmployWg_pm + EmployHrs_pmc + EmployWg_pmc + (EmployHrs_pmc + EmployWg_pmc | ID), data = GangEpl, seed = 2152)
+m_GangMem <- brm(GangMem ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, 
+                 seed = 2152,
+                 control = list(adapt_delta = .95))
 ```
 
 ```{r results_m_GangMem}
@@ -485,18 +467,6 @@ summary(m_GangMem)
 <!-- Interpretation of the model results: -->
 
 <!-- It seems that none of level1 and level2 variables are significantly predicting Gang Membership. However, the random effects of level2 variables are significant. -->
-
-A second try without EmployWg:
-
-```{r GangMem_2, cache=TRUE, results='hide', eval=FALSE}
-m_GangMem_2 <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, seed = 2152)
-```
-
-```{r results_m_GangMem_2, eval=FALSE}
-summary(m_GangMem_2)
-```
-
-<!-- This is a second try without predictors of EmoloyWg. The result demonstrated that both level1 and level2 variables of EmployHrs are not significantly predicting GangMem. -->
 
 ## Coefficient Table
 
