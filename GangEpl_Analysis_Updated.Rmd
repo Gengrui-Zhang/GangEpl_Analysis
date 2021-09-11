@@ -53,7 +53,9 @@ theme_set(theme_bw())  # Theme; just my personal preference
 
 ```{r import data_1, results='hide'}
 getwd()
-GangEpl <- read_sav(here("GangEpl.sav"))
+GangEpl <- read_sav(here("GangEpl.sav"))  # ML: The link does not work on my computer
+# GangEpl <- read_sav(
+#   here("data", "Weekly Data Final Version Missing Data Addressed-12-23-09.sav"))
 sapply(GangEpl, haven::zap_labels)
 GangEpl
 ```
@@ -65,8 +67,25 @@ GangEpl <- GangEpl %>%
          Del5 = (Del5a + Del5b + Del5c + Del5d + Del5e + Del5f) / 6,
          Days_Gang = as.numeric(GangInv1),
          Gang_Activity = as.numeric(GangInv2),
-         GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15))
+         GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + 
+                      GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + 
+                      GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15))
 ```
+
+[ML]: # (Use sum for `GangMem`)
+
+```{r recompute-gangmem}
+sum_if_not_na <- function(x) {
+  if (all(is.na(x))) return(NA)
+  sum(x, na.rm = TRUE)
+}
+GangEpl$GangMemSum <- apply(
+  select(GangEpl, GangMem1:GangMem15), 
+  MARGIN = 1,
+  FUN = sum_if_not_na
+)
+```
+
 
 # An overview of the study design and variables in the GangEpl (Gang Employment) dataset:
 
@@ -105,6 +124,13 @@ EmployHrs_df <- EmployHrs_Ave$x
 Gang_Activity_df <- Gang_Activity_Ave$x
 Days_Gang_df <- Days_Gang_Ave$x
 GangMem_df <- GangMem_Ave$x
+# By Mark
+GangEpl_agg <- GangEpl |>
+  group_by(Session) |>
+  summarise(EmployHrs = mean(EmployHrs, na.rm = TRUE),
+            Gang_Activity = mean(Gang_Activity, na.rm = TRUE),
+            Days_Gang = mean(Days_Gang, na.rm = TRUE),
+            GangMem = mean(GangMemSum, na.rm = TRUE))
 ```
 
 ```{r Call the use of package}
@@ -115,12 +141,26 @@ library(latticeExtra)
 obj1 <- xyplot(EmployHrs_df[1:27] ~ Session_Num[1:27], EmployHrs_Ave, type = "l" , lwd=2, col="steelblue")
 obj2 <- xyplot(Gang_Activity_df[1:27] ~ Session_Num[1:27], Gang_Activity_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj2, add.ylab2 = TRUE, use.style=FALSE)
+# By Mark
+ggplot(GangEpl_agg, aes(x = Session_Num)) +
+  geom_line(aes(y = EmployHrs, col = "Hours Employed")) +
+  geom_line(aes(y = Gang_Activity * 52 / 5, col = "Gang Activity")) +
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * 5 / 52, name = "Gang Activity")
+  )
 ```
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 1.png)
 
 ```{r Plot 2: Hours Employed and Days with Gang}
 obj3 <- xyplot(Days_Gang_df[1:27] ~ Session_Num[1:27], Days_Gang_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj3, add.ylab2 = TRUE, use.style=FALSE)
+# By Mark
+ggplot(GangEpl_agg, aes(x = Session_Num)) +
+  geom_line(aes(y = EmployHrs, col = "Hours Employed")) +
+  geom_line(aes(y = Days_Gang * 52 / 7, col = "Days With Gang")) +
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * 7 / 52, name = "Days With Gang")
+  )
 ```
 
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 2.png)
@@ -128,6 +168,13 @@ doubleYScale(obj1, obj3, add.ylab2 = TRUE, use.style=FALSE)
 ```{r Plot 3: Hours Employed and Gang Membership}
 obj4 <- xyplot(GangMem_df[1:27] ~ Session_Num[1:27], GangMem_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj4, add.ylab2 = TRUE, use.style=FALSE)
+# By Mark
+ggplot(GangEpl_agg, aes(x = Session_Num)) +
+  geom_line(aes(y = EmployHrs, col = "Hours Employed")) +
+  geom_line(aes(y = Days_Gang * 52 / 15, col = "Gang Membership")) +
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * 15 / 52, name = "Gang Membership")
+  )
 ```
 
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 3.png)
@@ -140,12 +187,16 @@ The summary of MLM analysis from last time demonstrated that the independent var
 
 Since the MLM analysis with all participants over all time ranges seems not satisfying (nearly no significant predictions by the IVs), one explanation could be that some participants did not have enough data of time points so their variations were not satisfying for MLM analysis. Pariticipants with ID 10, 13, and 26 were excluded for too few data points. Besides, we excluded session longer than 6 months to further ensure that the dataset had enough variations. Thus, we decided to block off those participants and re-do the analysis. Besides, since this is a longitudinal analysis, we think probably the lad predictors would also contribute to the variation of the DVs. Thus we will include lag predictors in the model.
 
-```{r import data, results='hide'}
+[ML]: # (There is no need to re-import the data)
+
+```{r import data, results='hide', eval = FALSE}
 getwd()
 GangEpl <- read_sav(here("GangEpl.sav"))
 sapply(GangEpl, haven::zap_labels)
 GangEpl
 ```
+
+[ML]: # (Please do not hard code the observation numbers. This is highly prone to error)
 
 ```{r Exclude participants without enough variations}
 # Exclude ID 10, 13, and 26
@@ -153,10 +204,31 @@ GangEpl_ex_1 <- GangEpl[-c(109:117, 152:172, 313:330), ]
 
 # Exclude sessions longer than 6 months
 GangEpl_ex_2 <- GangEpl_ex_1[-c(38:56, 78:80, 97:108, 135:142, 170:181, 215:218), ]
+
+# By Mark
+# Person-level descriptions
+GangEpl |>
+  group_by(ID) |>
+  summarise(EmployHrs = mean(EmployHrs),
+            Gang_Activity = mean(Gang_Activity, na.rm = TRUE),
+            Days_Gang = mean(Days_Gang, na.rm = TRUE),
+            GangMem = mean(GangMemSum, na.rm = TRUE))
+# Persons 10, 13, and 26 have no employment hours; person 5 has no gang activities
+GangEpl_sel <- GangEpl |>
+  # filter(!ID %in% c(5, 10, 13, 26)) |>
+  group_by(ID) |>
+  # Less than 180 days
+  filter(Date - Date[1] <= 180) |>
+  mutate(month = months(Date),
+         Gang_Activity = as_factor(GangInv2, ordered = TRUE),
+         EmployHrs_pm = mean(EmployHrs, na.rm = TRUE),
+         EmployHrs_pmc = EmployHrs - EmployHrs_pm,
+         EmployHrs_lag1 = lag(EmployHrs_pmc)) |>
+  ungroup()
 ```
 
 
-```{r Computing Scale Score and Stating Variables}
+```{r Computing Scale Score and Stating Variables, eval = FALSE}
 GangEpl_ex_2 <- GangEpl_ex_2 %>% 
   mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
          Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
@@ -207,7 +279,49 @@ m_Gang_Activity_1 <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployH
                        GangEpl_ex_2, 
                        seed = 2152,
                        control = list(adapt_delta = .95))
+# By Mark
+m_ga1 <- brm(Gang_Activity ~ Age + month + EmployHrs_pm + EmployHrs_pmc + 
+               (EmployHrs_pmc | ID) + 
+               ar(time = Session, gr = ID), 
+             data = GangEpl_sel, 
+             seed = 2152,
+             chains = 4,
+             cores = 2,
+             backend = "cmdstanr",
+             control = list(adapt_delta = .95))
+# Ordinal regression
+m_ga2 <- brm(Gang_Activity ~ Age + month + 
+               EmployHrs_pm + EmployHrs_pmc + 
+               (EmployHrs_pmc | ID) + 
+               ar(time = Session, gr = ID),
+             family = cumulative,
+             data = GangEpl_sel, 
+             seed = 2152,
+             chains = 4,
+             cores = 2,
+             backend = "cmdstanr",
+             control = list(adapt_delta = .995,
+                            max_treedepth = 12))
+# With lag predictor (not sufficient evidence)
+# m_ga3 <- brm(Gang_Activity ~ Age + month + 
+#                EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
+#                (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
+#                ar(time = Session, gr = ID),
+#              family = cumulative,
+#              data = GangEpl_sel, 
+#              seed = 2152,
+#              chains = 4,
+#              cores = 2,
+#              backend = "cmdstanr",
+#              control = list(adapt_delta = .995,
+#                             max_treedepth = 15))
 ```
+
+```{r}
+# Plot the model
+
+```
+
 
 ```{r results_m_Gang_Activity}
 summary(m_Gang_Activity_1)
@@ -258,6 +372,8 @@ GangEpl_ex_2 <- GangEpl_ex_2 %>%
   mutate(GangMem_pmc_lag1 = lag(GangMem_pmc)) %>%
   ungroup()
 ```
+
+[ML]: # (There's no need to put in a lag outcome. Just add in a lag predictor with the original predictor.)
 
 ```{r Employment Hours}
 m_ar_1 <- brm(EmployHrs ~ EmployHrs_pmc_lag1  + (EmployHrs_pmc_lag1 | ID), 
