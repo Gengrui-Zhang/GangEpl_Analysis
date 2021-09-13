@@ -68,6 +68,7 @@ theme_set(theme_bw())  # Theme; just my personal preference
 [ML]: # (Please only use 'cache=TRUE' for long processes)
 
 ```{r import data, results='hide'}
+getwd()
 GangEpl <- read_sav(here("GangEpl.sav"))
 sapply(GangEpl, haven::zap_labels)
 GangEpl
@@ -510,4 +511,110 @@ ggplot(aes(x = EmployHrs, y = GangMem)) +
   geom_point(size = 0.5) + 
   geom_smooth(method = "lm") + 
   facet_wrap( ~ ID)
+```
+
+## Replicate the graphs in the original paper
+
+```{r preparing for variables of the plot}
+EmployHrs_Ave <- aggregate(GangEpl$EmployHrs, by = list(GangEpl$Session), na.rm = TRUE, mean) #Check the cluster mean computation notes
+Gang_Activity_Ave <- aggregate(GangEpl$Gang_Activity, by = list(GangEpl$Session), na.rm = TRUE, mean)
+Days_Gang_Ave <- aggregate(GangEpl$Days_Gang, by = list(GangEpl$Session), na.rm = TRUE, mean)
+GangMem_Ave <- aggregate(GangEpl$GangMem, by = list(GangEpl$Session), na.rm = TRUE, mean)
+Session_Num <- EmployHrs_Ave$Group.1
+EmployHrs_df <- EmployHrs_Ave$x
+Gang_Activity_df <- Gang_Activity_Ave$x
+Days_Gang_df <- Days_Gang_Ave$x
+GangMem_df <- GangMem_Ave$x
+```
+
+```{r}
+library(latticeExtra)
+```
+
+```{r}
+obj1 <- xyplot(EmployHrs_df[1:27] ~ Session_Num[1:27], EmployHrs_Ave, type = "l" , lwd=2, col="steelblue")
+obj2 <- xyplot(Gang_Activity_df[1:27] ~ Session_Num[1:27], Gang_Activity_Ave, type = "l", lwd=2, col="#69b3a2")
+doubleYScale(obj1, obj2, add.ylab2 = TRUE, use.style=FALSE)
+```
+
+```{r}
+obj3 <- xyplot(Days_Gang_df[1:27] ~ Session_Num[1:27], Days_Gang_Ave, type = "l", lwd=2, col="#69b3a2")
+doubleYScale(obj1, obj3, add.ylab2 = TRUE, use.style=FALSE)
+```
+
+```{r}
+obj4 <- xyplot(GangMem_df[1:27] ~ Session_Num[1:27], GangMem_Ave, type = "l", lwd=2, col="#69b3a2")
+doubleYScale(obj1, obj4, add.ylab2 = TRUE, use.style=FALSE)
+```
+
+## Testing the lag predictors of Employment Hours on DVs
+
+```{r}
+library(astsa)
+```
+
+```{r Examine lag prediction on Gang Activity}
+library(tidyverse)
+lag <- stats::lag
+library(tseries)
+Ts_EmployHrs <- ts(GangEpl$EmployHrs)
+Ts_Gang_Activity <- ts(GangEpl$Gang_Activity)
+Ts_Gang_Activity[is.na(Ts_Gang_Activity)] <- 0
+ccfValues <- ccf(Ts_Gang_Activity, Ts_EmployHrs, na.action = na.pass)
+ccfValues
+lag2.plot(Ts_Gang_Activity, Ts_EmployHrs, 10) #Don't know why it does not work
+
+alldata=ts.intersect(Ts_Gang_Activity, GAlag1=lag(Ts_Gang_Activity,-1), GAlag2=lag(Ts_Gang_Activity,-2),
+EHrslag22 = lag(Ts_EmployHrs,-22), EHrslag21=lag(Ts_EmployHrs,-21), EHrslag20=lag(Ts_EmployHrs,-20), EHrslag19=lag(Ts_EmployHrs,-19), EHrslag18=lag(Ts_EmployHrs,-18), EHrslag17=lag(Ts_EmployHrs,-17), EHrslag16=lag(Ts_EmployHrs,-16), EHrslag1=lag(Ts_EmployHrs,1))
+
+lm_Lag1 = lm(Ts_Gang_Activity ~ EHrslag1, alldata)
+summary(lm_Lag1)
+
+lm_Lag1.1 = lm(Ts_Gang_Activity ~ EHrslag22 + EHrslag21 + EHrslag20 + EHrslag19 + EHrslag18 + EHrslag17 + EHrslag16, alldata)
+summary(lm_Lag1.1)
+
+```
+
+Based on the CCCF values plot, the most dominant cross correlations occur somewhere between h =−22 and about h = −16, between h = -5 and h = 0, between h = 9 and h = 17, and between h = 19 to h = 22. However, the average correlations between each lag predictor and the dependent variable is generally low and none of them exceeds 0.2.
+
+The example of linear regression model demonstrated that none of the lag predictors of employment hours is significantly predicting gang activity.
+
+The model with only lag1 predictor is significant instead.
+
+```{r Examine lag prediction on Gang Membership}
+Ts_Gang_Mem <- ts(GangEpl$GangMem)
+Ts_Gang_Mem[is.na(Ts_Gang_Mem)] <- 0
+ccfValues1 <- ccf(Ts_Gang_Mem, Ts_EmployHrs, na.action = na.pass)
+ccfValues1
+lag2.plot(Ts_Gang_Mem, Ts_EmployHrs, 10)
+
+alldata1 = ts.intersect(Ts_Gang_Mem, GMlag1=lag(Ts_Gang_Mem,-1), GMlag2=lag(Ts_Gang_Mem,-2), 
+                        Ehlag22 = lag(Ts_Gang_Mem,-22), 
+                        EHrslag22 = lag(Ts_EmployHrs,-22), EHrslag21=lag(Ts_EmployHrs,-21), EHrslag20=lag(Ts_EmployHrs,-20), EHrslag19=lag(Ts_EmployHrs,-19), EHrslag18=lag(Ts_EmployHrs,-18), EHrslag17=lag(Ts_EmployHrs,-17), EHrslag16=lag(Ts_EmployHrs,-16), EHrslag1=lag(Ts_EmployHrs,1))
+
+lm_Lag2 = lm(Ts_Gang_Mem ~ EHrslag1, alldata1)
+summary(lm_Lag2)
+
+lm_Lag2.1 = lm(Ts_Gang_Mem ~ EHrslag22 + EHrslag21 + EHrslag20 + EHrslag19 + EHrslag18 + EHrslag17 + EHrslag16, alldata1)
+summary(lm_Lag2.1)
+```
+
+In predicting gang membership, the model with only one lag predictor of employment hours did not show a significant result.
+
+```{r Examine lag predictors of Gang Membership}
+Ts_Gang_Days <- ts(GangEpl$Days_Gang)
+Ts_Gang_Days[is.na(Ts_Gang_Days)] <- 0
+ccfValues1 <- ccf(Ts_Gang_Days, Ts_EmployHrs, na.action = na.pass)
+ccfValues1
+lag2.plot(Ts_Gang_Days, Ts_EmployHrs, 10)
+
+alldata1 = ts.intersect(Ts_Gang_Mem, GMlag1=lag(Ts_Gang_Mem,-1), GMlag2=lag(Ts_Gang_Mem,-2), 
+                        Ehlag22 = lag(Ts_Gang_Mem,-22), 
+                        EHrslag22 = lag(Ts_EmployHrs,-22), EHrslag21=lag(Ts_EmployHrs,-21), EHrslag20=lag(Ts_EmployHrs,-20), EHrslag19=lag(Ts_EmployHrs,-19), EHrslag18=lag(Ts_EmployHrs,-18), EHrslag17=lag(Ts_EmployHrs,-17), EHrslag16=lag(Ts_EmployHrs,-16), EHrslag1=lag(Ts_EmployHrs,1))
+
+lm_Lag2 = lm(Ts_Gang_Mem ~ EHrslag1, alldata1)
+summary(lm_Lag2)
+
+lm_Lag2.1 = lm(Ts_Gang_Mem ~ EHrslag22 + EHrslag21 + EHrslag20 + EHrslag19 + EHrslag18 + EHrslag17 + EHrslag16, alldata1)
+summary(lm_Lag2.1)
 ```
