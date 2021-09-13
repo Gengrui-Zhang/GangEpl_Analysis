@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = TRUE, message = FALSE)
 ```
 
 ```{r loading packages, results = 'hide'}
@@ -62,17 +62,16 @@ GangEpl
 
 ```{r Computing Scale Score and Stating Variables_1}
 GangEpl <- GangEpl %>% 
-  mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
-         Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
-         Del5 = (Del5a + Del5b + Del5c + Del5d + Del5e + Del5f) / 6,
-         Days_Gang = as.numeric(GangInv1),
-         Gang_Activity = as.numeric(GangInv2),
+  mutate(Days_Gang = as.numeric(GangInv1),
+         Gang_Activity = as.numeric(GangInv2), 
          GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + 
                       GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + 
-                      GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15))
+                      GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15)
+         )
 ```
 
 [ML]: # (Use sum for `GangMem`)
+[JZ]: # (Good example! I'll take it. Thanks!)
 
 ```{r recompute-gangmem}
 sum_if_not_na <- function(x) {
@@ -115,7 +114,7 @@ GangEpl$GangMemSum <- apply(
 ## Replicate the graphs in the original paper
 
 ```{r preparing for variables of the plot}
-EmployHrs_Ave <- aggregate(GangEpl$EmployHrs, by = list(GangEpl$Session), na.rm = TRUE, mean) #Check the cluster mean computation notes
+EmployHrs_Ave <- aggregate(GangEpl$EmployHrs, by = list(GangEpl$Session), na.rm = TRUE, mean)
 Gang_Activity_Ave <- aggregate(GangEpl$Gang_Activity, by = list(GangEpl$Session), na.rm = TRUE, mean)
 Days_Gang_Ave <- aggregate(GangEpl$Days_Gang, by = list(GangEpl$Session), na.rm = TRUE, mean)
 GangMem_Ave <- aggregate(GangEpl$GangMem, by = list(GangEpl$Session), na.rm = TRUE, mean)
@@ -124,9 +123,10 @@ EmployHrs_df <- EmployHrs_Ave$x
 Gang_Activity_df <- Gang_Activity_Ave$x
 Days_Gang_df <- Days_Gang_Ave$x
 GangMem_df <- GangMem_Ave$x
+
 # By Mark
-GangEpl_agg <- GangEpl |>
-  group_by(Session) |>
+GangEpl_agg <- GangEpl %>% 
+  group_by(Session) %>% 
   summarise(EmployHrs = mean(EmployHrs, na.rm = TRUE),
             Gang_Activity = mean(Gang_Activity, na.rm = TRUE),
             Days_Gang = mean(Days_Gang, na.rm = TRUE),
@@ -141,6 +141,7 @@ library(latticeExtra)
 obj1 <- xyplot(EmployHrs_df[1:27] ~ Session_Num[1:27], EmployHrs_Ave, type = "l" , lwd=2, col="steelblue")
 obj2 <- xyplot(Gang_Activity_df[1:27] ~ Session_Num[1:27], Gang_Activity_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj2, add.ylab2 = TRUE, use.style=FALSE)
+
 # By Mark
 ggplot(GangEpl_agg, aes(x = Session_Num)) +
   geom_line(aes(y = EmployHrs, col = "Hours Employed")) +
@@ -148,6 +149,8 @@ ggplot(GangEpl_agg, aes(x = Session_Num)) +
   scale_y_continuous(
     sec.axis = sec_axis(~ . * 5 / 52, name = "Gang Activity")
   )
+
+par(mfrow=c(1,2))
 ```
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 1.png)
 
@@ -161,6 +164,8 @@ ggplot(GangEpl_agg, aes(x = Session_Num)) +
   scale_y_continuous(
     sec.axis = sec_axis(~ . * 7 / 52, name = "Days With Gang")
   )
+
+par(mfrow=c(1,2))
 ```
 
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 2.png)
@@ -175,6 +180,8 @@ ggplot(GangEpl_agg, aes(x = Session_Num)) +
   scale_y_continuous(
     sec.axis = sec_axis(~ . * 15 / 52, name = "Gang Membership")
   )
+
+par(mfrow=c(1,2))
 ```
 
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 3.png)
@@ -188,113 +195,101 @@ The summary of MLM analysis from last time demonstrated that the independent var
 Since the MLM analysis with all participants over all time ranges seems not satisfying (nearly no significant predictions by the IVs), one explanation could be that some participants did not have enough data of time points so their variations were not satisfying for MLM analysis. Pariticipants with ID 10, 13, and 26 were excluded for too few data points. Besides, we excluded session longer than 6 months to further ensure that the dataset had enough variations. Thus, we decided to block off those participants and re-do the analysis. Besides, since this is a longitudinal analysis, we think probably the lad predictors would also contribute to the variation of the DVs. Thus we will include lag predictors in the model.
 
 [ML]: # (There is no need to re-import the data)
-
-```{r import data, results='hide', eval = FALSE}
-getwd()
-GangEpl <- read_sav(here("GangEpl.sav"))
-sapply(GangEpl, haven::zap_labels)
-GangEpl
-```
+[JZ]: # (Oh I think it was duplicated. Thanks for your remindar.)
 
 [ML]: # (Please do not hard code the observation numbers. This is highly prone to error)
 
 ```{r Exclude participants without enough variations}
 # Exclude ID 10, 13, and 26
-GangEpl_ex_1 <- GangEpl[-c(109:117, 152:172, 313:330), ]
+#GangEpl_ex_1 <- GangEpl[-c(109:117, 152:172, 313:330), ]
 
 # Exclude sessions longer than 6 months
-GangEpl_ex_2 <- GangEpl_ex_1[-c(38:56, 78:80, 97:108, 135:142, 170:181, 215:218), ]
+#GangEpl_ex_2 <- GangEpl_ex_1[-c(38:56, 78:80, 97:108, 135:142, 170:181, 215:218), ]
 
 # By Mark
 # Person-level descriptions
-GangEpl |>
-  group_by(ID) |>
+GangEpl %>%
+  group_by(ID) %>%
   summarise(EmployHrs = mean(EmployHrs),
             Gang_Activity = mean(Gang_Activity, na.rm = TRUE),
             Days_Gang = mean(Days_Gang, na.rm = TRUE),
             GangMem = mean(GangMemSum, na.rm = TRUE))
 # Persons 10, 13, and 26 have no employment hours; person 5 has no gang activities
-GangEpl_sel <- GangEpl |>
-  # filter(!ID %in% c(5, 10, 13, 26)) |>
-  group_by(ID) |>
+GangEpl_sel <- GangEpl %>%
+  # filter(!ID %in% c(5, 10, 13, 26)) %>%
+  group_by(ID) %>%
   # Less than 180 days
-  filter(Date - Date[1] <= 180) |>
+  filter(Date - Date[1] <= 180) %>%
   mutate(month = months(Date),
          Gang_Activity = as_factor(GangInv2, ordered = TRUE),
          EmployHrs_pm = mean(EmployHrs, na.rm = TRUE),
          EmployHrs_pmc = EmployHrs - EmployHrs_pm,
-         EmployHrs_lag1 = lag(EmployHrs_pmc)) |>
+         EmployHrs_lag1 = lag(EmployHrs_pmc)) %>%
   ungroup()
+
+# GangEpl_sel$month
 ```
 
 
 ```{r Computing Scale Score and Stating Variables, eval = FALSE}
-GangEpl_ex_2 <- GangEpl_ex_2 %>% 
-  mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
-         Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
-         Del5 = (Del5a + Del5b + Del5c + Del5d + Del5e + Del5f) / 6,
-         Days_Gang = as.numeric(GangInv1),
-         Gang_Activity = as.numeric(GangInv2),
-         GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15))
+#GangEpl_ex_2 <- GangEpl_ex_2 %>% 
+ #mutate(Del1 = (Del1a + Del1b + Del1c + Del1d + Del1e + Del1f) / 6, 
+        # Del2 = (Del2a + Del2b + Del2c + Del2d + Del2e + Del2f) / 6,
+        # Del5 = (Del5a + Del5b + Del5c + Del5d + Del5e + Del5f) / 6,
+        # Days_Gang = as.numeric(GangInv1),
+        # Gang_Activity = as.numeric(GangInv2),
+        # GangMem = (GangMem1 + GangMem2 + GangMem3 + GangMem4 + GangMem5 + GangMem6 + GangMem7 + GangMem8 + GangMem9 + GangMem10 + GangMem11 + GangMem12 + GangMem13 + GangMem14 + GangMem15))
 ```
 
 ```{r centering variables, cache=TRUE, echo=FALSE, results='hide'}
-GangEpl_ex_2 <- GangEpl_ex_2 %>% 
-  group_by(ID) %>% 
-  mutate(across(c(EmployHrs, EmployWg), 
+#GangEpl_ex_2 <- GangEpl_ex_2 %>% 
+ # group_by(ID) %>% 
+ # mutate(across(c(EmployHrs, EmployWg), 
                 # The `.` means the variable to be operated on
-                list("pm" = ~ mean(., na.rm = TRUE), 
-                     "pmc" = ~ . - mean(., na.rm = TRUE)))) %>% 
-  ungroup()
+                #list("pm" = ~ mean(., na.rm = TRUE), 
+                     #"pmc" = ~ . - mean(., na.rm = TRUE)))) %>% 
+  #ungroup()
 
-GangEpl_ex_2 <- GangEpl_ex_2 %>% 
-  group_by(ID) %>% 
-  mutate(across(c(Gang_Activity, Days_Gang, GangMem), 
+#GangEpl_ex_2 <- GangEpl_ex_2 %>% 
+  #group_by(ID) %>% 
+  #mutate(across(c(Gang_Activity, Days_Gang, GangMem), 
                 # The `.` means the variable to be operated on
-                list("pm" = ~ mean(., na.rm = TRUE), 
-                     "pmc" = ~ . - mean(., na.rm = TRUE)))) %>% 
-  ungroup()
+                #list("pm" = ~ mean(., na.rm = TRUE), 
+                     #"pmc" = ~ . - mean(., na.rm = TRUE)))) %>% 
+  #ungroup()
 ```
 
 ### Gang Involvement
 
 ```{r Days_Gang, cache=TRUE, results='hide'}
-m_Days_Gang_1 <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl_ex_2, 
-                   seed = 2152,
-                   control = list(adapt_delta = .95))
+#m_Days_Gang_1 <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl_ex_2, 
+                  # seed = 2152,
+                  # control = list(adapt_delta = .95))
 ```
 
 ```{r results_m_Days_Gang}
-summary(m_Days_Gang_1)
+#summary(m_Days_Gang_1)
 ```
 
-<!-- Interpretation of the model results: -->
+```{r Visualize between/within effects associations for Gang Involvement}
+m_dg_p <- GangEpl_sel %>% 
+  ggplot(aes(x = EmployHrs_pm, y = Days_Gang, col = ID)) + 
+  geom_point(size = 0.7, alpha = 0.5) + 
+  geom_smooth(se = FALSE) + 
+  geom_point(aes(x = EmployHrs_pm, y = Days_Gang, fill = ID), 
+             shape = 24, col = "black", size = 2) + 
+  geom_smooth(aes(x = EmployHrs, y =Days_Gang, group = 1), 
+              method = "lm", linetype = "dashed", fullrange = TRUE)
+m_dg_p
+```
 
-<!-- It seems that none of level1 and level2 variables are significantly predicting the Days with Gang. However, the random effects of level2 variables are significant. -->
+Here we can see the overall trend between Employ Hours and Gang Involvement is that for every average increase in employment hours the days with gangs of participants will decrease, although the decreasing trend looks not obvious.
 
-### Gang Activity
-
-```{r cache=TRUE, results='hide'}
-m_Gang_Activity_1 <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data =    
-                       GangEpl_ex_2, 
-                       seed = 2152,
-                       control = list(adapt_delta = .95))
-# By Mark
-m_ga1 <- brm(Gang_Activity ~ Age + month + EmployHrs_pm + EmployHrs_pmc + 
-               (EmployHrs_pmc | ID) + 
-               ar(time = Session, gr = ID), 
-             data = GangEpl_sel, 
-             seed = 2152,
-             chains = 4,
-             cores = 2,
-             backend = "cmdstanr",
-             control = list(adapt_delta = .95))
-# Ordinal regression
-m_ga2 <- brm(Gang_Activity ~ Age + month + 
+```{r, results = 'hide'}
+m_dg <- brm(Days_Gang ~ Age + month + 
                EmployHrs_pm + EmployHrs_pmc + 
                (EmployHrs_pmc | ID) + 
                ar(time = Session, gr = ID),
-             family = cumulative,
              data = GangEpl_sel, 
              seed = 2152,
              chains = 4,
@@ -302,12 +297,19 @@ m_ga2 <- brm(Gang_Activity ~ Age + month +
              backend = "cmdstanr",
              control = list(adapt_delta = .995,
                             max_treedepth = 12))
-# With lag predictor (not sufficient evidence)
-# m_ga3 <- brm(Gang_Activity ~ Age + month + 
+
+summary(m_dg)
+```
+
+- Results of model with covariates `Age` and `Months`: It seems that Employment Hours is significant for Gang   Involvement at the within-person level, 95%CI [0.00, 0.10].
+
+```{r}
+# Add lag predictor in the Gang Involvement Model
+
+# m_dg2 <- brm(Days_Gang ~ Age + month + 
 #                EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
 #                (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
 #                ar(time = Session, gr = ID),
-#              family = cumulative,
 #              data = GangEpl_sel, 
 #              seed = 2152,
 #              chains = 4,
@@ -315,135 +317,203 @@ m_ga2 <- brm(Gang_Activity ~ Age + month +
 #              backend = "cmdstanr",
 #              control = list(adapt_delta = .995,
 #                             max_treedepth = 15))
+
+# summary(m_dg2)
 ```
+
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of employment       hours significantly   predicts Gang Involvement, with a 95%CI [0.00, 0.11].
+
+```{r}
+plot(
+  conditional_effects(m_dg),
+  points = TRUE,
+  point_args =  list(
+    width = 0.02,
+    height = 0.02,
+    alpha = 0.3,
+    size = 0.6
+  ),
+  ask = FALSE
+)
+
+```
+
+- Here are some plots of conditional effects of covariates on Gang Involvement.
+
+### Gang Activity
+
+```{r Visualize between/within effects associations for Gang Activity}
+m_dg_p <- GangEpl_sel %>% 
+  ggplot(aes(x = EmployHrs_pm, y = Gang_Activity, col = ID)) + 
+  geom_point(size = 0.7, alpha = 0.5) + 
+  geom_smooth(se = FALSE) + 
+  geom_point(aes(x = EmployHrs_pm, y = Gang_Activity, fill = ID), 
+             shape = 24, col = "black", size = 2) + 
+  geom_smooth(aes(x = EmployHrs, y = Gang_Activity, group = 1), 
+              method = "lm", linetype = "dashed", fullrange = TRUE)
+m_dg_p
+```
+
+- The overall trend between Employ Hours and Gang Activity is that for every average increase in employment     hours the days with gangs of participants will decrease.
+
+```{r cache=TRUE, results='hide'}
+#m_Gang_Activity_1 <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data =    
+                      # GangEpl_ex_2, 
+                      # seed = 2152,
+                      # control = list(adapt_delta = .95))
+
+
+# By Mark
+# m_ga1 <- brm(Gang_Activity ~ Age + month + EmployHrs_pm + EmployHrs_pmc + 
+#               (EmployHrs_pmc | ID) + 
+#               ar(time = Session, gr = ID), 
+#             data = GangEpl_sel, 
+#             seed = 2152,
+#             chains = 4,
+#             cores = 2,
+#             backend = "cmdstanr",
+#             control = list(adapt_delta = .95))
+
+# Ordinal regression
+ m_ga2 <- brm(Gang_Activity ~ Age + month + 
+               EmployHrs_pm + EmployHrs_pmc + 
+               (EmployHrs_pmc | ID) + 
+               ar(time = Session, gr = ID),
+             family = cumulative,
+             data = GangEpl_sel, 
+             seed = 2152,
+             chains = 4,
+             cores = 4,
+             backend = "cmdstanr",
+             control = list(adapt_delta = .995,
+                            max_treedepth = 12))
+
+summary(m_ga2)
+
+# With lag predictor (not sufficient evidence)
+# m_ga3 <- brm(Gang_Activity ~ Age + month + 
+#               EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
+#                (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
+#                ar(time = Session, gr = ID),
+#              family = cumulative,
+#              data = GangEpl_sel, 
+#              seed = 2152,
+#              chains = 4,
+#              cores = 4,
+#              backend = "cmdstanr",
+#              control = list(adapt_delta = .995,
+#                             max_treedepth = 15))
+```
+
+- Results of the model with covariate `Age` and `months`: It seems that Employment Hours is significant for     Gang Activity at the within-person level, 95%CI [0.00, 0.13]. 
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour   does not significantly predict Gang Activity.
 
 ```{r}
 # Plot the model
 
+# describe(GangEpl_sel$EmployHrs_pmc)
+# describe(GangEpl_sel$EmployHrs_pm)
+
+plot(
+  conditional_effects(m_ga2),
+  points = TRUE,
+  point_args =  list(
+    width = 0.02,
+    height = 0.02,
+    alpha = 0.3,
+    size = 0.6
+  ),
+  ask = FALSE
+)
+
+par(mfrow=c(2,2))
 ```
 
+- Here the point is that there is an obvious decreasing trend in Gang Activity for participants who spend more   time in Employment.
 
 ```{r results_m_Gang_Activity}
-summary(m_Gang_Activity_1)
+# summary(m_Gang_Activity_1)
 ```
 
-<!-- Interpretation of the model results: -->
-
-<!-- It seems that none of level1 and level2 variables are significantly predicting the Days with Gang. However, the random effects of level2 variables are significant. -->
 
 ### Gang Membership
 
 ```{r GangMem, cache=TRUE, results='hide'}
-m_GangMem_1 <- brm(GangMem ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl_ex_2, 
-                 seed = 2152,
-                 control = list(adapt_delta = .95))
+# m_GangMem_1 <- brm(GangMem ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl_ex_2, 
+#                 seed = 2152,
+#                 control = list(adapt_delta = .95))
 ```
 
 ```{r results_m_GangMem}
-summary(m_GangMem_1)
+#summary(m_GangMem_1)
 ```
 
-<!-- Interpretation of the model results: -->
+```{r, results = 'hide'}
+#Gaussian family here because Family 'cumulative' requires either positive integers or ordered factors as responses.
+m_gm <- brm(GangMemSum ~ Age + month + 
+               EmployHrs_pm + EmployHrs_pmc + 
+               (EmployHrs_pmc | ID) + 
+               ar(time = Session, gr = ID),
+             data = GangEpl_sel, 
+             seed = 2152,
+             chains = 4,
+             cores = 4,
+             backend = "cmdstanr",
+             control = list(adapt_delta = .995,
+                            max_treedepth = 12))
 
-<!-- It seems that none of level1 and level2 variables are significantly predicting the Days with Gang. However, the random effects of level2 variables are significant. -->
-
-## Autoregression Model
-
-An autoregressive model asks the question: does observation at time `t` predicts observations at time `t+1`? In this case, the question being asked could be whether employment hours affect people in working for more hours or not. 
-
-```{r Create lagged predictor}
-GangEpl_ex_2 <- GangEpl_ex_2 %>%
-  group_by(ID) %>% 
-  mutate(EmployHrs_pmc_lag1 = lag(EmployHrs_pmc)) %>%
-  ungroup()
-
-GangEpl_ex_2 <- GangEpl_ex_2 %>%
-  group_by(ID) %>% 
-  mutate(Gang_Activity_pmc_lag1 = lag(Gang_Activity_pmc)) %>%
-  ungroup()
-
-GangEpl_ex_2 <- GangEpl_ex_2 %>%
-  group_by(ID) %>% 
-  mutate(Days_Gang_pmc_lag1 = lag(Days_Gang_pmc)) %>%
-  ungroup()
-
-GangEpl_ex_2 <- GangEpl_ex_2 %>%
-  group_by(ID) %>% 
-  mutate(GangMem_pmc_lag1 = lag(GangMem_pmc)) %>%
-  ungroup()
+summary(m_gm)
 ```
+
+Results of the model with covariate `Age` and `months`: It seems that Employ Hours is significant for Gang Membership at the within-person level, 95%CI [0.00, 0.18].
+
+```{r}
+#Add the lag predictor
+# m_gm2 <- brm(GangMemSum ~ Age + month + 
+#                EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
+#                (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
+#                ar(time = Session, gr = ID),
+#              family = gaussian,
+#              data = GangEpl_sel, 
+#              seed = 2152,
+#              chains = 4,
+#              cores = 2,
+#              backend = "cmdstanr",
+#              control = list(adapt_delta = .995,
+#                             max_treedepth = 15))
+
+# summary(m_gm2)
+```
+
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour does not significantly predict Gang Activity.
+
+```{r Conditional Plot for Gang Membership}
+plot(
+  conditional_effects(m_gm),
+  points = TRUE,
+  point_args =  list(
+    width = 0.02,
+    height = 0.02,
+    alpha = 0.3,
+    size = 0.6
+  ),
+  ask = FALSE
+)
+
+par(mfrow=c(2,2))
+```
+- The conditional effects of Employment Hours on Gang Membership looks really small because the line is nearly   close to horizontal.
 
 [ML]: # (There's no need to put in a lag outcome. Just add in a lag predictor with the original predictor.)
+[JZ]: # (Great! I have removed those models.)
 
-```{r Employment Hours}
-m_ar_1 <- brm(EmployHrs ~ EmployHrs_pmc_lag1  + (EmployHrs_pmc_lag1 | ID), 
-            data = GangEpl_ex_2, 
-            control = list(adapt_delta = .90), 
-            seed = 2313)
+## Short Summary
 
-summary(m_ar_1)
-```
+We have some summary points for MLM analysis with covariates of month, age, and lag predictor of Employment Hours: 
 
-The model suggests that the avergae employment hours in `t+1` session is 1 unit per unit time (SD  = .00).
+1. It looks like Employment Hours does have a within-person level (centered person-mean0 significant effects on Gang Involvement, Gang Membership, and Gang Activity. The general trends for three paired relationship are both slightly decreasing.
 
-```{r Gang_Activity}
-m_ar_2 <- brm(Gang_Activity ~ Gang_Activity_pmc_lag1  + (Gang_Activity_pmc_lag1 | ID), 
-            data = GangEpl_ex_2, 
-            control = list(adapt_delta = .90), 
-            seed = 2313)
+2. The covariates (age and months) look like not having significant effects on DVs.
 
-summary(m_ar_2)
-```
+2. The lag predictor of Employment Hours was found significantly predicting Gang Involvement but not Gang Activity and Gang Membership.
 
-The model suggests that the average Gang Activity in `t+1` session is affecting Gang Activity by 0.99 unit per unit time (SD  = .01).
-
-```{r Gang_Membership}
-m_ar_3 <- brm(GangMem ~ GangMem_pmc_lag1  + (GangMem_pmc_lag1 | ID), 
-            data = GangEpl_ex_2, 
-            control = list(adapt_delta = .90), 
-            seed = 2313)
-
-summary(m_ar_3)
-```
-
-The model suggests that the average Gang Membership in `t+1` session is affecting Gang Membership by 0.99 unit per unit time (SD  = .01).
-
-```{r Days with Gang}
-m_ar_4 <- brm(Days_Gang ~ Days_Gang_pmc_lag1  + (Days_Gang_pmc_lag1 | ID), 
-            data = GangEpl_ex_2, 
-            control = list(adapt_delta = .90), 
-            seed = 2313)
-
-summary(m_ar_4)
-```
-
-### Adding Employment Hours 
-
-```{r}
-m_ar_eh_1 <- brm(Gang_Activity ~ Gang_Activity_pmc_lag1 * (EmployHrs_pm + EmployHrs_pmc_lag1) +
-                  (1 | ID), 
-                data = GangEpl_ex_2, 
-                control = list(adapt_delta = .90))
-
-summary(m_ar_eh_1)
-```
-
-```{r}
-m_ar_eh_2 <- brm(Days_Gang ~ Days_Gang_pmc_lag1 * (EmployHrs_pm + EmployHrs_pmc_lag1) +
-                  (1 | ID), 
-                data = GangEpl_ex_2, 
-                control = list(adapt_delta = .90))
-
-summary(m_ar_eh_2)
-```
-
-```{r}
-m_ar_eh_3 <- brm(GangMem ~ GangMem_pmc_lag1 * (EmployHrs_pm + EmployHrs_pmc_lag1) +
-                  (1 | ID), 
-                data = GangEpl_ex_2, 
-                control = list(adapt_delta = .90))
-
-summary(m_ar_eh_3)
-```
-
-For each DV (Gang Activity, Days with Gang, and Gang Membership), I don't think either the lag predictors of DVs, interaction between employment hours and each DV, and Employment Hours significantly predict DVs.
