@@ -3,24 +3,16 @@ title: "GangEpl_Prelim_Analysis_Report"
 author: "Jimmy Zhang"
 date: "12/02/2020"
 output:
+  word_document: default
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
-  word_document: default
 ---
-
-TODO
-
-- [ ] Separate Gang Activity (`GangInv2`) and Days With Gang (`GangInv1`)
-- [ ] Replace the original analyses with `GangInv`
-- [ ] Use employment as predictor rather than outcome. See Table 3 of the paper.
-
-Have Done
 
 [ML]: # (You can control the global chunk options below)
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 ```
 
 [ML]: # (Please only use 'cache=TRUE' for long processes. It's dangerous to accumulate old data.)
@@ -32,6 +24,8 @@ library(here)  # makes reading data more consistent
 library(tidyverse)  # for data manipulation and plotting
 library(modelsummary)  # for making tables
 library(brms)  # for Bayesian multilevel analysis
+# (Optional) Set multiple cores in global option
+options(mc.cores = min(parallel::detectCores() - 1, 4L))
 library(sjPlot)  # for plotting slopes
 library(interactions)  # for plotting interactions
 library(haven)  # for importing SPSS/SAS/Stata data
@@ -68,7 +62,8 @@ theme_set(theme_bw())  # Theme; just my personal preference
 [ML]: # (Please only use 'cache=TRUE' for long processes)
 
 ```{r import data, results='hide'}
-GangEpl <- read_sav(here("GangEpl.sav"))
+# GangEpl <- read_sav(here("GangEpl.sav"))
+GangEpl <- read_sav(here("data", "Weekly Data Final Version Missing Data Addressed-12-23-09.sav"))
 sapply(GangEpl, haven::zap_labels)
 GangEpl
 ```
@@ -78,6 +73,8 @@ GangEpl
   This is a long form dataset in which each participant was measured multiple times (indicated by the variable Session). We have 337 observations and 57 variables in total.
   
   Within-subject design: Youth were randomly assigned to either BEP or usual services (US), and data were collected at each intervention session. Hypothesis: Increases in employment among BEP participants would be related to reductions in gang involvement over the course of treatment.
+  
+> Do we know which employment is zero and which is missing?
   
   Between-subject design: Compare BEP and US participants at the 3 month and 6 month assessment periods. Hypothesis: BEP would lead to higher employment and less gang involvement than US, and that changes in employment would mediate the effect of treatment on gang involvement.
   
@@ -175,10 +172,11 @@ This is a plot illustrating the employ wage of previous week. The highest number
 [JZ]: # (I added the following graph)
 
 ```{r EmployWg ~ elapse}
-GangEpl %>% 
+GangEpl <- GangEpl %>% 
     group_by(ID) %>% 
     mutate(elapse = Date - min(Date)) %>% 
-ggplot(aes(x = elapse, y = EmployWg)) + 
+    ungroup()
+ggplot(GangEpl, aes(x = elapse, y = EmployWg)) + 
   geom_point() + 
   geom_line(aes(group = ID, color = factor(ID))) + 
   labs(x = "Days since first measurement")
@@ -360,9 +358,12 @@ The ICC of GangMem is also kind of high, 37.9%.
 ## Checking whether there is a trend in the data
 
 ```{r trend checking, echo=FALSE, cache=TRUE, results='hide'}
-m_Trend <- brm(Days_Gang ~ Date + (Date | ID), data = GangEpl, 
-          seed = 2313, 
-          control = list(adapt_delta = .99))
+GangEpl$elapse_mo <- GangEpl$elapse / 30
+m_Trend <- brm(Days_Gang | trials(7) ~ elapse_mo + (elapse_mo | ID), 
+               data = GangEpl, 
+               family = binomial(), 
+               control = list(adapt_delta = .90), 
+               seed = 2313)
 ```
 
 ```{r result_m_Trend, echo=FALSE, cache=TRUE}
@@ -376,9 +377,10 @@ summary(m_Trend)
 Since the outcome of this model is not convergent with a pretty small coefficient of date, we can say that there is a negligible trend in the data.
 
 ```{r trend checking 2, echo=FALSE, cache=TRUE, results='hide'}
-m_Trend_2 <- brm(Gang_Activity ~ Date + (Date | ID), data = GangEpl, 
-          seed = 2313, 
-          control = list(adapt_delta = .99))
+m_Trend_2 <- brm(Gang_Activity ~ elapse_mo + (elapse_mo | ID), 
+                 data = GangEpl, 
+                 seed = 2313, 
+                 control = list(adapt_delta = .90))
 ```
 
 ```{r result_m_Trend_2, echo=FALSE, cache=TRUE}
@@ -406,10 +408,11 @@ GangEpl
 
 # Advanced MLM Analysis
 
-## Using variables to predict Gangs_Gang
+## Using variables to predict Days_Gang
 
 ```{r Days_Gang, cache=TRUE, results='hide'}
-m_Days_Gang <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, 
+m_Days_Gang <- brm(Days_Gang ~ EmployHrs_pm + EmployHrs_pmc + 
+                     (EmployHrs_pmc | ID), data = GangEpl, 
                    seed = 2152,
                    control = list(adapt_delta = .95))
 ```
@@ -439,7 +442,8 @@ $$
 ## Using variables to predict Gang_Activity
 
 ```{r Gang_Activity, cache=TRUE, results='hide'}
-m_Gang_Activity <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, 
+m_Gang_Activity <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + 
+                         (EmployHrs_pmc | ID), data = GangEpl, 
                        seed = 2152,
                        control = list(adapt_delta = .95))
 ```
@@ -455,9 +459,10 @@ summary(m_Gang_Activity)
 ## Using variables to predict GangMem
 
 ```{r GangMem, cache=TRUE, results='hide'}
-m_GangMem <- brm(GangMem ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data = GangEpl, 
+m_GangMem <- brm(GangMem ~ EmployHrs_pm + EmployHrs_pmc + 
+                   (EmployHrs_pmc | ID), data = GangEpl, 
                  seed = 2152,
-                 control = list(adapt_delta = .95))
+                 control = list(adapt_delta = .99))
 ```
 
 ```{r results_m_GangMem}
