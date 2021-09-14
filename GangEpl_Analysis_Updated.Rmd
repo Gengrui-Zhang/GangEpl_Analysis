@@ -107,16 +107,18 @@ GangEpl_agg <- GangEpl %>%
             GangMem = mean(GangMemSum, na.rm = TRUE))
 ```
 
-[ML]: # (Load packages in the beginning)
-
-```{r Call the use of package, eval = FALSE}
-```
-
 [ML]: # (Could you change the labels for the x- and y-axes? Thanks.)
+[JZ]: # (Sure!)
 
 ```{r Plot 1: Hours Employed and Gang Activity}
-obj1 <- xyplot(EmployHrs_df[1:27] ~ Session_Num[1:27], EmployHrs_Ave, type = "l" , lwd=2, col="steelblue")
-obj2 <- xyplot(Gang_Activity_df[1:27] ~ Session_Num[1:27], Gang_Activity_Ave, type = "l", lwd=2, col="#69b3a2")
+obj1 <- xyplot(EmployHrs_df[1:27] ~ Session_Num[1:27], 
+               xlab = "Session Number",
+               ylab = "Employment Hours",
+               EmployHrs_Ave, type = "l" , lwd=2, col="steelblue")
+obj2 <- xyplot(Gang_Activity_df[1:27] ~ Session_Num[1:27], 
+               xlab = "Session Number",
+               ylab = "Gang Activity",
+               Gang_Activity_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj2, add.ylab2 = TRUE, use.style=FALSE)
 
 # By Mark
@@ -132,7 +134,10 @@ doubleYScale(obj1, obj2, add.ylab2 = TRUE, use.style=FALSE)
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 1.png)
 
 ```{r Plot 2: Hours Employed and Days with Gang}
-obj3 <- xyplot(Days_Gang_df[1:27] ~ Session_Num[1:27], Days_Gang_Ave, type = "l", lwd=2, col="#69b3a2")
+obj3 <- xyplot(Days_Gang_df[1:27] ~ Session_Num[1:27], 
+               xlab = "Session Number",
+               ylab = "Days with Gang per Week",
+               Days_Gang_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj3, add.ylab2 = TRUE, use.style=FALSE)
 # By Mark
 # ggplot(GangEpl_agg, aes(x = Session_Num)) +
@@ -148,7 +153,10 @@ doubleYScale(obj1, obj3, add.ylab2 = TRUE, use.style=FALSE)
 ![](/Users/jimmy_z/R Projects/GangEpl_Analysis/Images/Original Plot 2.png)
 
 ```{r Plot 3: Hours Employed and Gang Membership}
-obj4 <- xyplot(GangMem_df[1:27] ~ Session_Num[1:27], GangMem_Ave, type = "l", lwd=2, col="#69b3a2")
+obj4 <- xyplot(GangMem_df[1:27] ~ Session_Num[1:27], 
+               xlab = "Session Number",
+               ylab = "Gang Membership",
+               GangMem_Ave, type = "l", lwd=2, col="#69b3a2")
 doubleYScale(obj1, obj4, add.ylab2 = TRUE, use.style=FALSE)
 # By Mark
 # ggplot(GangEpl_agg, aes(x = Session_Num)) +
@@ -190,7 +198,7 @@ GangEpl %>%
             GangMem = mean(GangMemSum, na.rm = TRUE))
 # Persons 10, 13, and 26 have no employment hours; person 5 has no gang activities
 GangEpl_sel <- GangEpl %>%
-  # filter(!ID %in% c(5, 10, 13, 26)) %>%
+  #filter(!ID %in% c(5, 10, 13, 26)) %>%
   group_by(ID) %>%
   # Less than 180 days
   filter(Date - Date[1] <= 180) %>%
@@ -207,6 +215,7 @@ GangEpl_sel <- GangEpl %>%
 ### Gang Involvement
 
 [ML]: # (Let's just show the within-person associations; do this for the other outcomes)
+[JZ]: # (Great! This plot looks cool.)
 
 ```{r Visualize between/within effects associations for Gang Involvement, eval = FALSE}
 m_dg_p <- GangEpl_sel %>% 
@@ -218,7 +227,7 @@ m_dg_p <- GangEpl_sel %>%
 m_dg_p
 ```
 
-Here we can see the overall trend between Employ Hours and Gang Involvement is that for every average increase in employment hours the days with gangs of participants will decrease, although the decreasing trend looks not obvious.
+Here we can see the overall trend between Employ Hours and Gang Involvement is that for every average increase in centered employment hours the days with gangs of participants will decrease, although the decreasing trend looks not really obvious.
 
 ```{r, results = 'hide'}
 m_dg <- brm(Days_Gang ~ Age + month + 
@@ -233,6 +242,8 @@ m_dg <- brm(Days_Gang ~ Age + month +
              control = list(adapt_delta = .995,
                             max_treedepth = 12))
 summary(m_dg)
+
+
 # Binomial model
 m_dg_bin <- brm(Days_Gang | trials(7) ~ Age + month + 
                   EmployHrs_pm + EmployHrs_pmc + 
@@ -249,31 +260,47 @@ m_dg_bin <- brm(Days_Gang | trials(7) ~ Age + month +
 summary(m_dg_bin)
 ```
 
-[ML]: # (Show the conditional_effects plots)
-
-- Results of model with covariates `Age` and `Months`: It seems that Employment Hours is significant for Gang   Involvement at the within-person level, 95%CI [0.00, 0.10].
-
 [ML]: # (It was not significant on my end)
 
+- Results of Gaussain model with covariates `Age` and `Months`: It seems that Employment Hours is not significant for Gang Involvement at the within-person level, 95%CI [-0.05, 0.02]. Age is also not a significant predictor, 95%CI [-0.54, 1.00]. However, month December, 95%CI [-4.14, -0.56], and month September, 95%CI [-3.02, -0.24], have been found significant for Gang Involvement.
+
+- Results of Binomial model with covariates `Age` and `Months` (compute the probability of observing a specified number of "Successful involvement" for 7 days): It seems that Employment Hours is not significant for Gang Involvement at the within-person level, 95%CI [-0.07, 0.02]. Age is also not a significant predictor, 95%CI [-0.12, 1.77]. However, month December with 95%CI [-6.24, -1.75], month November with 95%CI [-4.27, -0.43], month Octorber with 95%CI [-3.55, -0.35], and month September with 95%CI [-4.44, -1.17], have been found significant for Gang Involvement.
+
 ```{r}
-# Add lag predictor in the Gang Involvement Model
+ #Add lag predictor in the Gang Involvement Model
 
-# m_dg2 <- brm(Days_Gang ~ Age + month + 
-#                EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
-#                (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
-#                ar(time = Session, gr = ID),
-#              data = GangEpl_sel, 
-#              seed = 2152,
-#              chains = 4,
-#              cores = 2,
-#              backend = "cmdstanr",
-#              control = list(adapt_delta = .995,
-#                             max_treedepth = 15))
+ #m_dg2 <- brm(Days_Gang ~ Age + month + 
+ #               EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
+ #               (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
+ #              ar(time = Session, gr = ID),
+ #             data = GangEpl_sel, 
+ #             seed = 2152,
+ #             chains = 4,
+ #             cores = 4,
+ #             backend = "cmdstanr",
+ #             control = list(adapt_delta = .995,
+ #                            max_treedepth = 15))
 
-# summary(m_dg2)
+ # summary(m_dg2)
 ```
 
-- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of employment       hours significantly   predicts Gang Involvement, with a 95%CI [0.00, 0.11].
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of employment       hours doesn't significantly predicts Gang Involvement..
+
+[ML]: # (Show the conditional_effects plots)
+
+```{r}
+plot(
+  conditional_effects(
+    m_dg, 
+    effects = "EmployHrs_pmc",
+    type = "pred", 
+    re_formula = ~ EmployHrs_pmc | ID, 
+    conditions = tibble(ID = unique(GangEpl_sel$ID))
+    ),
+  ask = FALSE,
+  ncol = 4
+)
+```
 
 [ML]: # (You can just show the within-association; please explain the graph though)
 
@@ -291,23 +318,21 @@ plot(
 )
 ```
 
-- Here are some plots of conditional effects of covariates on Gang Involvement.
+- Here are some plots of within-person conditional effects of covariates on Gang Involvement. For both gaussian and binomial models, the plots indicate that days spent with gang for each participant became averagely decreasing as the employment hours increase.
 
 ### Gang Activity
 
-```{r Visualize between/within effects associations for Gang Activity}
-m_dg_p <- GangEpl_sel %>% 
-  ggplot(aes(x = EmployHrs_pm, y = Gang_Activity, col = ID)) + 
-  geom_point(size = 0.7, alpha = 0.5) + 
-  geom_smooth(se = FALSE) + 
-  geom_point(aes(x = EmployHrs_pm, y = Gang_Activity, fill = ID), 
-             shape = 24, col = "black", size = 2) + 
-  geom_smooth(aes(x = EmployHrs, y = Gang_Activity, group = 1), 
-              method = "lm", linetype = "dashed", fullrange = TRUE)
-m_dg_p
+```{r Visualize between/within effects associations for Gang Activity, eval = FALSE}
+m_ga_p <- GangEpl_sel %>% 
+  ggplot(aes(x = EmployHrs_pmc, y = as.numeric(Gang_Activity))) + 
+  geom_jitter(aes(col = factor(ID)), height = 0.2, alpha = 0.5) + 
+  geom_smooth() + 
+  guides(color = "none") +
+  labs(x = "Employment Hours", y = "Gang Activity")
+m_ga_p
 ```
 
-- The overall trend between Employ Hours and Gang Activity is that for every average increase in employment     hours the days with gangs of participants will decrease.
+- The overall trend between Employ Hours and Gang Activity is that for every average increase in employment     hours the days with gangs of participants will decrease, even though the trend looks not linear.
 
 ```{r cache=TRUE, results='hide'}
 #m_Gang_Activity_1 <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data =    
@@ -357,7 +382,8 @@ summary(m_ga2)
 #                             max_treedepth = 15))
 ```
 
-- Results of the model with covariate `Age` and `months`: It seems that Employment Hours is significant for     Gang Activity at the within-person level, 95%CI [0.00, 0.13]. 
+- Results of the model with covariate `Age` and `months`: It seems that Employment Hours is significant for     Gang Activity at the within-person level, 95%CI [-0.16, -0.01]. Age is not a significant predictor. Month December with 95%CI [-9.44, -0.92], month January with 95%[-9.88, -0.29], and month November with 95%CI [-7.92,, -0.01], have been found significant for Gang Activity.
+
 - Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour   does not significantly predict Gang Activity.
 
 ```{r}
@@ -379,7 +405,7 @@ plot(
 )
 ```
 
-- Here the point is that there is an obvious decreasing trend in Gang Activity for participants who spend more   time in Employment.
+- Here the point is that there is an obvious decreasing trend in Gang Activity for participants who spend more   time in Employment. The within-person association between employment hours and gang acitivty is decreasing     over time.
 
 ```{r results_m_Gang_Activity}
 # summary(m_Gang_Activity_1)
@@ -413,6 +439,7 @@ m_gm <- brm(GangMemSum ~ Age + month +
                             max_treedepth = 12))
 
 summary(m_gm)
+
 # Here's the binomial model
 m_gm_bin <- brm(GangMemSum | trials(15) ~ Age + month + 
                   EmployHrs_pm + EmployHrs_pmc + 
@@ -429,7 +456,8 @@ m_gm_bin <- brm(GangMemSum | trials(15) ~ Age + month +
 summary(m_gm_bin)
 ```
 
-Results of the model with covariate `Age` and `months`: It seems that Employ Hours is significant for Gang Membership at the within-person level, 95%CI [0.00, 0.18].
+- Results of the gaussian model with covariate `Age` and `months`: It seems that Employ Hours is significant     for Gang Membership at the within-person level, 95%CI [-0.08, 0.07]. Age is not a significant predictor for    Gang Membership. None of the months has been found significant for Gang Membership.
+- Results of the binomial model with covariate `Age` and `months` (compute the probability of observing a        specified number of "Successful Active Membership"): It seems that Employ Hours is not significant for Gang    Membership at the within-person level, 95%CI [-0.07, 0.04]. Age is not a significant predictor for Gang        Membership. Month August, December, July, November, October, and September have been found significant for     Gang Membership.
 
 ```{r}
 #Add the lag predictor
@@ -449,24 +477,37 @@ Results of the model with covariate `Age` and `months`: It seems that Employ Hou
 # summary(m_gm2)
 ```
 
-- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour does not significantly predict Gang Activity.
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour   does not significantly predict Gang Activity.
 
 ```{r Conditional Plot for Gang Membership}
 plot(
-  conditional_effects(m_gm),
-  points = TRUE,
-  point_args =  list(
-    width = 0.02,
-    height = 0.02,
-    alpha = 0.3,
-    size = 0.6
-  ),
-  ask = FALSE
+  conditional_effects(
+    m_gm, 
+    effects = "EmployHrs_pmc",
+    type = "pred", 
+    re_formula = ~ EmployHrs_pmc | ID, 
+    conditions = tibble(ID = unique(GangEpl_sel$ID))
+    ),
+  ask = FALSE,
+  ncol = 4
 )
-
-par(mfrow=c(2,2))
 ```
-- The conditional effects of Employment Hours on Gang Membership looks really small because the line is nearly   close to horizontal.
+
+```{r}
+plot(
+  conditional_effects(
+    m_gm_bin, 
+    effects = "EmployHrs_pmc",
+    type = "pred", 
+    re_formula = ~ EmployHrs_pmc | ID, 
+    conditions = tibble(ID = unique(GangEpl_sel$ID))
+    ),
+  ask = FALSE,
+  ncol = 4
+)
+```
+
+- The conditional effects of Employment Hours on Gang Membership looks really small because each line of         within-person association is nearly close to horizontal.
 
 [ML]: # (There's no need to put in a lag outcome. Just add in a lag predictor with the original predictor.)
 [JZ]: # (Great! I have removed those models.)
@@ -475,9 +516,9 @@ par(mfrow=c(2,2))
 
 We have some summary points for MLM analysis with covariates of month, age, and lag predictor of Employment Hours: 
 
-1. It looks like Employment Hours does have a within-person level (centered person-mean0 significant effects on Gang Involvement, Gang Membership, and Gang Activity. The general trends for three paired relationship are both slightly decreasing.
+1. It looks like Employment Hours does have a within-person level (centered person-mean significant effects on Gang Involvement, Gang Membership, and Gang Activity. The general trends for three paired relationship are both slightly decreasing.
 
-2. The covariates (age and months) look like not having significant effects on DVs.
+2. The covariate `Age` looks like not having significant effects on any of DVs, but some of `months` have significant effects on DVs, though the pattern of months is not clear to see.
 
-2. The lag predictor of Employment Hours was found significantly predicting Gang Involvement but not Gang Activity and Gang Membership.
+2. The lag predictor of Employment Hours wasn't found significantly predicting three DVs. 
 
