@@ -21,7 +21,27 @@ library(haven)  # for importing SPSS/SAS/Stata data
 library(modelsummary)
 library(broom.mixed)
 library(latticeExtra)
-theme_set(theme_bw())  # Theme; just my personal preference
+theme_set(theme_bw())
+
+msummary_mixed <- function(models, coef_map = NULL, add_rows = NULL, ...) {
+  if (is.null(coef_map)) {
+    if (!"list" %in% class(models)) {
+      models <- list(models)
+    }
+    for (model in models) {
+      coef_map <- union(coef_map, tidy(model)$term)
+    }
+  }
+  ranef_index <- grep("^(sd|cor)__", x = coef_map)
+  coef_map <- c(coef_map[-ranef_index], coef_map[ranef_index])
+  names(coef_map) <- coef_map
+  rows <- data.frame(term = c("Fixed Effects", "Random Effects"))
+  rows <- cbind(rows, rbind(rep("", length(models)), 
+                            rep("", length(models))))
+  length_fes <- length(coef_map) - length(ranef_index)
+  attr(rows, 'position') <- c(1, (length_fes + 1) * 2)
+  modelsummary::msummary(models, coef_map = coef_map, add_rows = rows, ...)
+}
 ```
 
 ```{r import data_1, results = 'hide'}
@@ -177,7 +197,7 @@ The plots I have replicated look roughly the same with the original plots, but t
 
 The summary of MLM analysis from last time demonstrated that the independent variable `EmployHrs` (Employment Hours) did not significantly predict the dependent variables `Days_Gang` (Gang Involvement), `Gang_Mem` (Gang Membership), and `Gang_Activity` (Gang Activity). It seems that none of level1 and level2 variables of `EmployHrs` are significantly predicting the Gang Activity. However, the random effects of level2 variable (Centered Variable of `EmployHrs`) are significant.
 
-Since the MLM analysis with all participants over all time ranges seems not satisfying (nearly no significant predictions by the IVs), one explanation could be that some participants did not have enough data of time points so their variations were not satisfying for MLM analysis. Pariticipants with ID 10, 13, and 26 were excluded for too few data points. Besides, we excluded session longer than 6 months to further ensure that the dataset had enough variations. Thus, we decided to block off those participants and re-do the analysis. Besides, since this is a longitudinal analysis, we think probably the lad predictors would also contribute to the variation of the DVs. Thus we will include lag predictors in the model.
+Since the MLM analysis with all participants over all time ranges seems not satisfying (nearly no significant predictions by the IVs), one explanation could be that some participants did not have enough data of time points so their variations were not satisfying for MLM analysis. We excluded sessions longer than 6 months to ensure that the dataset had enough variations. Thus, we decided to block off those participants and re-do the analysis. Besides, since this is a longitudinal analysis, we think probably the lad predictors would also contribute to the variation of the DVs. Thus we will include lag predictors in the model.
 
 [ML]: # (Please do not hard code the observation numbers. This is highly prone to error)
 
@@ -230,18 +250,18 @@ m_dg_p
 Here we can see the overall trend between Employ Hours and Gang Involvement is that for every average increase in centered employment hours the days with gangs of participants will decrease, although the decreasing trend looks not really obvious.
 
 ```{r, results = 'hide'}
-m_dg <- brm(Days_Gang ~ Age + month + 
-               EmployHrs_pm + EmployHrs_pmc + 
-               (EmployHrs_pmc | ID) + 
-               ar(time = Session, gr = ID),
-             data = GangEpl_sel, 
-             seed = 2152,
-             chains = 4,
-             cores = 2,
-             backend = "cmdstanr",
-             control = list(adapt_delta = .995,
-                            max_treedepth = 12))
-summary(m_dg)
+# m_dg <- brm(Days_Gang ~ Age + month + 
+#               EmployHrs_pm + EmployHrs_pmc + 
+#               (EmployHrs_pmc | ID) + 
+#               ar(time = Session, gr = ID),
+#             data = GangEpl_sel, 
+#             seed = 2152,
+#             chains = 4,
+#             cores = 2,
+#             backend = "cmdstanr",
+#             control = list(adapt_delta = .995,
+#                            max_treedepth = 12))
+# summary(m_dg)
 
 
 # Binomial model
@@ -261,8 +281,6 @@ summary(m_dg_bin)
 ```
 
 [ML]: # (It was not significant on my end)
-
-- Results of Gaussain model with covariates `Age` and `Months`: It seems that Employment Hours is not significant for Gang Involvement at the within-person level, 95%CI [-0.05, 0.02]. Age is also not a significant predictor, 95%CI [-0.54, 1.00]. However, month December, 95%CI [-4.14, -0.56], and month September, 95%CI [-3.02, -0.24], have been found significant for Gang Involvement.
 
 - Results of Binomial model with covariates `Age` and `Months` (compute the probability of observing a specified number of "Successful involvement" for 7 days): It seems that Employment Hours is not significant for Gang Involvement at the within-person level, 95%CI [-0.07, 0.02]. Age is also not a significant predictor, 95%CI [-0.12, 1.77]. However, month December with 95%CI [-6.24, -1.75], month November with 95%CI [-4.27, -0.43], month Octorber with 95%CI [-3.55, -0.35], and month September with 95%CI [-4.44, -1.17], have been found significant for Gang Involvement.
 
@@ -284,22 +302,22 @@ summary(m_dg_bin)
  # summary(m_dg2)
 ```
 
-- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of employment       hours doesn't significantly predicts Gang Involvement..
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of employment hours doesn't significantly predicts Gang Involvement.
 
 [ML]: # (Show the conditional_effects plots)
 
 ```{r}
-plot(
-  conditional_effects(
-    m_dg, 
-    effects = "EmployHrs_pmc",
-    type = "pred", 
-    re_formula = ~ EmployHrs_pmc | ID, 
-    conditions = tibble(ID = unique(GangEpl_sel$ID))
-    ),
-  ask = FALSE,
-  ncol = 4
-)
+# plot(
+#  conditional_effects(
+#    m_dg, 
+#    effects = "EmployHrs_pmc",
+#    type = "pred", 
+#    re_formula = ~ EmployHrs_pmc | ID, 
+#    conditions = tibble(ID = unique(GangEpl_sel$ID))
+#    ),
+#  ask = FALSE,
+#  ncol = 4
+# )
 ```
 
 [ML]: # (You can just show the within-association; please explain the graph though)
@@ -318,7 +336,7 @@ plot(
 )
 ```
 
-- Here are some plots of within-person conditional effects of covariates on Gang Involvement. For both gaussian and binomial models, the plots indicate that days spent with gang for each participant became averagely decreasing as the employment hours increase.
+- Here are some plots of within-person conditional effects of covariates on Gang Involvement. The plot indicates that days spent with gang for each participant became averagely decreasing as the employment hours increase.
 
 ### Gang Activity
 
@@ -332,7 +350,7 @@ m_ga_p <- GangEpl_sel %>%
 m_ga_p
 ```
 
-- The overall trend between Employ Hours and Gang Activity is that for every average increase in employment     hours the days with gangs of participants will decrease, even though the trend looks not linear.
+- The overall trend between Employ Hours and Gang Activity is that for every average increase in employment hours the days with gangs of participants will decrease, even though the trend looks not linear.
 
 ```{r cache=TRUE, results='hide'}
 #m_Gang_Activity_1 <- brm(Gang_Activity ~ EmployHrs_pm + EmployHrs_pmc + (EmployHrs_pmc | ID), data =    
@@ -382,9 +400,9 @@ summary(m_ga2)
 #                             max_treedepth = 15))
 ```
 
-- Results of the model with covariate `Age` and `months`: It seems that Employment Hours is significant for     Gang Activity at the within-person level, 95%CI [-0.16, -0.01]. Age is not a significant predictor. Month December with 95%CI [-9.44, -0.92], month January with 95%[-9.88, -0.29], and month November with 95%CI [-7.92,, -0.01], have been found significant for Gang Activity.
+- Results of the model with covariate `Age` and `months`: It seems that Employment Hours is significant for Gang Activity at the within-person level, 95%CI [-0.16, -0.01]. Age is not a significant predictor. Month December with 95%CI [-9.44, -0.92], month January with 95%[-9.88, -0.29], and month November with 95%CI [-7.92,, -0.01], have been found significant for Gang Activity.
 
-- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour   does not significantly predict Gang Activity.
+- Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour does not significantly predict Gang Activity.
 
 ```{r}
 # Plot the model
@@ -405,7 +423,7 @@ plot(
 )
 ```
 
-- Here the point is that there is an obvious decreasing trend in Gang Activity for participants who spend more   time in Employment. The within-person association between employment hours and gang acitivty is decreasing     over time.
+- Here the point is that there is an obvious decreasing trend in Gang Activity for participants who spend more   time in Employment. The within-person association between employment hours and gang acitivty is decreasing over time.
 
 ```{r results_m_Gang_Activity}
 # summary(m_Gang_Activity_1)
@@ -426,19 +444,19 @@ plot(
 
 ```{r, results = 'hide'}
 #Gaussian family here because Family 'cumulative' requires either positive integers or ordered factors as responses.
-m_gm <- brm(GangMemSum ~ Age + month + 
-               EmployHrs_pm + EmployHrs_pmc + 
-               (EmployHrs_pmc | ID) + 
-               ar(time = Session, gr = ID),
-             data = GangEpl_sel, 
-             seed = 2152,
-             chains = 4,
-             cores = 4,
-             backend = "cmdstanr",
-             control = list(adapt_delta = .995,
-                            max_treedepth = 12))
+# m_gm <- brm(GangMemSum ~ Age + month + 
+#               EmployHrs_pm + EmployHrs_pmc + 
+#               (EmployHrs_pmc | ID) + 
+#               ar(time = Session, gr = ID),
+#             data = GangEpl_sel, 
+#             seed = 2152,
+#             chains = 4,
+#             cores = 4,
+#             backend = "cmdstanr",
+#             control = list(adapt_delta = .995,
+#                            max_treedepth = 12))
 
-summary(m_gm)
+# summary(m_gm)
 
 # Here's the binomial model
 m_gm_bin <- brm(GangMemSum | trials(15) ~ Age + month + 
@@ -456,20 +474,19 @@ m_gm_bin <- brm(GangMemSum | trials(15) ~ Age + month +
 summary(m_gm_bin)
 ```
 
-- Results of the gaussian model with covariate `Age` and `months`: It seems that Employ Hours is significant     for Gang Membership at the within-person level, 95%CI [-0.08, 0.07]. Age is not a significant predictor for    Gang Membership. None of the months has been found significant for Gang Membership.
-- Results of the binomial model with covariate `Age` and `months` (compute the probability of observing a        specified number of "Successful Active Membership"): It seems that Employ Hours is not significant for Gang    Membership at the within-person level, 95%CI [-0.07, 0.04]. Age is not a significant predictor for Gang        Membership. Month August, December, July, November, October, and September have been found significant for     Gang Membership.
+- Results of the binomial model with covariate `Age` and `months` (compute the probability of observing a specified number of "Successful Active Membership"): It seems that Employ Hours is not significant for Gang Membership at the within-person level, 95%CI [-0.07, 0.04]. Age is not a significant predictor for Gang Membership. Month August, December, July, November, October, and September have been found significant for Gang Membership.
 
 ```{r}
-#Add the lag predictor
+# Add the lag predictor
 # m_gm2 <- brm(GangMemSum ~ Age + month + 
 #                EmployHrs_pm + EmployHrs_pmc + EmployHrs_lag1 +
 #                (EmployHrs_pmc + EmployHrs_lag1 | ID) + 
 #                ar(time = Session, gr = ID),
-#              family = gaussian,
+#                family = gaussian,
 #              data = GangEpl_sel, 
 #              seed = 2152,
 #              chains = 4,
-#              cores = 2,
+#              cores = 4,
 #              backend = "cmdstanr",
 #              control = list(adapt_delta = .995,
 #                             max_treedepth = 15))
@@ -480,17 +497,17 @@ summary(m_gm_bin)
 - Results of the model with lag predictor `EmployHrs_lag1`: It looks like the lag predictor of Employment Hour   does not significantly predict Gang Activity.
 
 ```{r Conditional Plot for Gang Membership}
-plot(
-  conditional_effects(
-    m_gm, 
-    effects = "EmployHrs_pmc",
-    type = "pred", 
-    re_formula = ~ EmployHrs_pmc | ID, 
-    conditions = tibble(ID = unique(GangEpl_sel$ID))
-    ),
-  ask = FALSE,
-  ncol = 4
-)
+# plot(
+#  conditional_effects(
+#    m_gm, 
+#    effects = "EmployHrs_pmc",
+#    type = "pred", 
+#    re_formula = ~ EmployHrs_pmc | ID, 
+#    conditions = tibble(ID = unique(GangEpl_sel$ID))
+#    ),
+#  ask = FALSE,
+#  ncol = 4
+#)
 ```
 
 ```{r}
@@ -507,18 +524,29 @@ plot(
 )
 ```
 
-- The conditional effects of Employment Hours on Gang Membership looks really small because each line of         within-person association is nearly close to horizontal.
+- The conditional effects of Employment Hours on Gang Membership looks really small because each line of within-person association is nearly close to horizontal.
 
 [ML]: # (There's no need to put in a lag outcome. Just add in a lag predictor with the original predictor.)
 [JZ]: # (Great! I have removed those models.)
+
+## Coefficient Table
+
+```{r warning=FALSE}
+msummary_mixed(list("Gang Involvement Binomial Model" = m_dg_bin, 
+                    "Gang Membership Binomial Model" = m_gm_bin),
+               statistic = "conf.int", looic = TRUE)
+msummary_mixed(list("Gang Activity Gaussian Model" = m_ga2),
+               statistic = "conf.int", looic = TRUE)
+```
+
 
 ## Short Summary
 
 We have some summary points for MLM analysis with covariates of month, age, and lag predictor of Employment Hours: 
 
-1. It looks like Employment Hours does have a within-person level (centered person-mean significant effects on Gang Involvement, Gang Membership, and Gang Activity. The general trends for three paired relationship are both slightly decreasing.
+1. It looks like Employment Hours does have a within-person level (centered person-mean significant effects) only on Gang Activity. The general trends for three paired relationship (IV-DVs) are both slightly decreasing. 
 
 2. The covariate `Age` looks like not having significant effects on any of DVs, but some of `months` have significant effects on DVs, though the pattern of months is not clear to see.
 
-2. The lag predictor of Employment Hours wasn't found significantly predicting three DVs. 
+3. The lag predictor of Employment Hours wasn't found significantly predicting three DVs. 
 
