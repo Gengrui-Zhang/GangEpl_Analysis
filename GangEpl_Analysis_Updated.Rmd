@@ -5,6 +5,7 @@ date: "9/7/2021"
 output:
   html_document:
     df_print: paged
+  word_document: default
 ---
 
 ```{r setup, include = FALSE}
@@ -273,8 +274,7 @@ m_dg_bin <- brm(Days_Gang | trials(7) ~ Age + month +
                 data = GangEpl_sel, 
                 seed = 2152,
                 chains = 4,
-                cores = 2,
-                backend = "cmdstanr",
+                cores = 4,
                 control = list(adapt_delta = .995,
                                max_treedepth = 12))
 summary(m_dg_bin)
@@ -379,7 +379,7 @@ m_ga2 <- brm(Gang_Activity ~ Age + month +
              data = GangEpl_sel, 
              seed = 2152,
              chains = 4,
-             cores = 2,
+             cores = 4,
              backend = "cmdstanr",
              control = list(adapt_delta = .995,
                             max_treedepth = 12))
@@ -468,7 +468,6 @@ m_gm_bin <- brm(GangMemSum | trials(15) ~ Age + month +
                 seed = 2152,
                 chains = 4,
                 cores = 4,
-                backend = "cmdstanr",
                 control = list(adapt_delta = .995,
                                max_treedepth = 12))
 summary(m_gm_bin)
@@ -531,13 +530,13 @@ plot(
 
 ## Coefficient Table
 
-```{r warning=FALSE}
+```{r echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
 msummary_mixed(list("Gang Involvement Binomial Model" = m_dg_bin, 
-                    "Gang Membership Binomial Model" = m_gm_bin),
-               statistic = "conf.int", looic = TRUE)
-msummary_mixed(list("Gang Activity Gaussian Model" = m_ga2),
+              "Gang Membership Binomial Model" = m_gm_bin,
+              "Gang Activity Gaussian Model" = m_ga2),
                statistic = "conf.int", looic = TRUE)
 ```
+
 
 
 ## Short Summary
