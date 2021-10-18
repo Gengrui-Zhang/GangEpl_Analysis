@@ -109,16 +109,6 @@ GangEpl$GangMemSum <- apply(
 ## Replicate the graphs in the original paper
 
 ```{r preparing for variables of the plot}
-EmployHrs_Ave <- aggregate(GangEpl$EmployHrs, by = list(GangEpl$Session), na.rm = TRUE, mean)
-Gang_Activity_Ave <- aggregate(GangEpl$Gang_Activity, by = list(GangEpl$Session), na.rm = TRUE, mean)
-Days_Gang_Ave <- aggregate(GangEpl$Days_Gang, by = list(GangEpl$Session), na.rm = TRUE, mean)
-GangMem_Ave <- aggregate(GangEpl$GangMemSum, by = list(GangEpl$Session), na.rm = TRUE, mean)
-Session_Num <- EmployHrs_Ave$Group.1
-EmployHrs_df <- EmployHrs_Ave$x
-Gang_Activity_df <- Gang_Activity_Ave$x
-Days_Gang_df <- Days_Gang_Ave$x
-GangMem_df <- GangMem_Ave$x
-
 # By Mark
 GangEpl_agg <- GangEpl %>% 
   group_by(Session) %>% 
@@ -217,9 +207,9 @@ GangEpl %>%
             Gang_Activity = mean(Gang_Activity, na.rm = TRUE),
             Days_Gang = mean(Days_Gang, na.rm = TRUE),
             GangMem = mean(GangMemSum, na.rm = TRUE))
-# Persons 10, 13, and 26 have no employment hours; person 5 has no gang activities
+# Persons 5, 10, and 26 have no employment hours; person 5 has no gang activities
 GangEpl_sel <- GangEpl %>%
-  #filter(!ID %in% c(5, 10, 13, 26)) %>%
+  filter(!ID %in% c(5, 10, 26)) %>%
   group_by(ID) %>%
   # Less than 180 days
   filter(Date - Date[1] <= 180) %>%
@@ -229,7 +219,6 @@ GangEpl_sel <- GangEpl %>%
          EmployHrs_pmc = EmployHrs - EmployHrs_pm,
          EmployHrs_lag1 = lag(EmployHrs_pmc)) %>%
   ungroup()
-
 # GangEpl_sel$month
 ```
 
